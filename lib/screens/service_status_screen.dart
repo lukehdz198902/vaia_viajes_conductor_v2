@@ -83,9 +83,10 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          final navigator = Navigator.of(context);
                           await ride.finishTrip(s.id, auth.userId);
                           if (!mounted) return;
-                          Navigator.pushReplacementNamed(context, '/rating');
+                          navigator.pushReplacementNamed('/rating');
                         },
                         icon: const Icon(Icons.stop_circle),
                         label: const Text('Finalizar Viaje'),

@@ -48,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${auth.conductor?.nombreCompleto ?? "Conductor"}'),
+        title: Text(auth.conductor?.nombreCompleto ?? 'Conductor'),
         actions: [
           IconButton(icon: const Icon(Icons.notifications_outlined), onPressed: () => Navigator.pushNamed(context, '/notifications')),
           IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () => Navigator.pushNamed(context, '/settings')),
@@ -85,9 +85,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildQuickAction(Icons.star_outline, 'Calificación', '${auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? "0.0"}'),
+                    _buildQuickAction(Icons.star_outline, 'Calificación', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0'),
                     _buildQuickAction(Icons.monetization_on_outlined, 'Ganancias', ''),
-                    _buildQuickAction(Icons.route_outlined, 'Viajes', '${auth.conductor?.totalViajes ?? 0}'),
+                    _buildQuickAction(Icons.route_outlined, 'Viajes', (auth.conductor?.totalViajes ?? 0).toString()),
                   ],
                 ),
                 const SizedBox(height: 20),

@@ -73,8 +73,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: () async {
-                await context.read<AuthProvider>().logout();
-                if (mounted) Navigator.pushReplacementNamed(context, '/login');
+                final auth = context.read<AuthProvider>();
+                final navigator = Navigator.of(context);
+                await auth.logout();
+                if (mounted) navigator.pushReplacementNamed('/login');
               },
               icon: const Icon(Icons.logout, color: AppTheme.danger),
               label: const Text('Cerrar Sesión', style: TextStyle(color: AppTheme.danger)),

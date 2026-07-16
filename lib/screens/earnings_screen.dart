@@ -60,9 +60,10 @@ class _EarningsScreenState extends State<EarningsScreen> {
                     onPressed: profile.loading
                         ? null
                         : () async {
+                            final messenger = ScaffoldMessenger.of(context);
                             final ok = await profile.transferirCorte(auth.userId, c.id);
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger.showSnackBar(
                                 SnackBar(content: Text(ok ? 'Transferencia solicitada' : 'Error'), backgroundColor: ok ? AppTheme.accent : AppTheme.danger),
                               );
                             }

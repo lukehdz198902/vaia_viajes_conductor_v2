@@ -52,9 +52,10 @@ class _VehicleScreenState extends State<VehicleScreen> {
 
   void _selectVehicle(BuildContext context, int unidadId) async {
     final auth = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
     final ok = await context.read<ProfileProvider>().selectUnidad(auth.userId, unidadId);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(content: Text(ok ? 'Vehículo seleccionado' : 'Error al seleccionar'), backgroundColor: ok ? AppTheme.accent : AppTheme.danger),
       );
     }
