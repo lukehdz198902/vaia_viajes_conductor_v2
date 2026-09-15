@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/vaia_widgets.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,13 +27,21 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthProvider>();
-    final ok = await auth.login(_accountCtrl.text.trim(), _passCtrl.text);
+    final ok = await auth.login(
+      _accountCtrl.text.trim(),
+      _passCtrl.text,
+      dispositivoInfo: 'Flutter Conductor App',
+      sistemaOperativo: 'Android',
+    );
     if (!mounted) return;
     if (ok) {
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'Error al iniciar sesión'), backgroundColor: AppTheme.danger),
+        SnackBar(
+          content: Text(auth.error ?? 'Error al iniciar sesion'),
+          backgroundColor: VaiaColors.danger,
+        ),
       );
     }
   }
@@ -40,63 +50,94 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     return Scaffold(
-      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
-            child: Column(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.vertical,
+            ),
+            child: IntrinsicHeight(
+              child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 60),
-                Container(
-                  width: 100, height: 100,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                  child: const Icon(Icons.directions_car, size: 50, color: AppTheme.primary),
-                ),
-                const SizedBox(height: 24),
-                const Text('Iniciar Sesión', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.textDark)),
-                const SizedBox(height: 8),
-                const Text('Accede a tu cuenta de conductor', style: TextStyle(color: AppTheme.textMedium)),
                 const SizedBox(height: 40),
-                TextFormField(
-                  controller: _accountCtrl,
-                  decoration: const InputDecoration(labelText: 'Usuario o Correo', prefixIcon: Icon(Icons.person_outline)),
-                  validator: (v) => v == null || v.trim().isEmpty ? 'Ingrese su usuario' : null,
+                Center(child: VaiaLogo(size: 64, showText: true)),
+                const SizedBox(height: 32),
+                Text(
+                  'Bienvenido conductor',
+                  style: Theme.of(context).textTheme.displaySmall,
+                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passCtrl,
-                  obscureText: _obscure,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure ? Icons.visibility_off : Icons.visibility),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-                  validator: (v) => v == null || v.isEmpty ? 'Ingrese su contraseña' : null,
+                const SizedBox(height: 6),
+                Text(
+                  'Inicia sesion para empezar a recibir viajes',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
+                  textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: auth.loading ? null : _login,
-                    child: auth.loading
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Text('Iniciar Sesión'),
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      VaiaTextField(
+                        controller: _accountCtrl,
+                        label: 'Usuario o correo',
+                        hint: 'Tu cuenta de conductor',
+                        prefixIcon: Icons.person_outline_rounded,
+                        textInputAction: TextInputAction.next,
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Ingrese su usuario' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      VaiaTextField(
+                        controller: _passCtrl,
+                        label: 'Contrasena',
+                        hint: 'Ingrese su contrasena',
+                        prefixIcon: Icons.lock_outline_rounded,
+                        obscureText: _obscure,
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _login(),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(() => _obscure = !_obscure),
+                        ),
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Ingrese su contrasena' : null,
+                      ),
+                      const SizedBox(height: 24),
+                      VaiaPrimaryButton(
+                        label: 'Iniciar sesion',
+                        icon: Icons.arrow_forward_rounded,
+                        loading: auth.loading,
+                        onPressed: auth.loading ? null : _login,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.pushNamed(context, '/register'),
-                  child: const Text('¿No tienes cuenta? Regístrate', style: TextStyle(color: AppTheme.primary)),
+                const Spacer(),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('No tienes cuenta?', style: Theme.of(context).textTheme.bodyMedium),
+                    TextButton(
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                      ),
+                      child: const Text('Registrate'),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 16),
               ],
+              ),
             ),
           ),
         ),

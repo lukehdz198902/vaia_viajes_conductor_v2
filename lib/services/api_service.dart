@@ -7,11 +7,36 @@ class ApiResponse {
   final Map<String, dynamic>? data;
   final List<dynamic>? list;
   final String? error;
+  final String? message;
+  final String? errorCode;
+  final int? statusCode;
 
-  ApiResponse({required this.ok, this.data, this.list, this.error});
+  ApiResponse({
+    required this.ok,
+    this.data,
+    this.list,
+    this.error,
+    this.message,
+    this.errorCode,
+    this.statusCode,
+  });
+
+  factory ApiResponse.fromMap(Map<String, dynamic> json) {
+    final dataRaw = json['data'];
+    final isList = dataRaw is List;
+    return ApiResponse(
+      ok: json['success'] == true,
+      data: dataRaw is Map<String, dynamic> ? dataRaw : (dataRaw is Map ? Map<String, dynamic>.from(dataRaw) : null),
+      list: isList ? List<Map<String, dynamic>>.from(dataRaw) : null,
+      message: json['message']?.toString(),
+      error: json['message']?.toString(),
+      errorCode: json['code']?.toString(),
+      statusCode: json['code'] is int ? json['code'] : null,
+    );
+  }
 
   int get id => data?['id'] ?? 0;
-  String get mensaje => data?['mensaje']?.toString() ?? '';
+  String get mensaje => message ?? '';
   int get resultado => data?['resultado'] ?? 0;
 }
 
@@ -20,22 +45,34 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._();
 
-  String base = ApiConfig.baseUrl;
+  String base = ApiConfig.apiRoot;
 
-  Future<ApiResponse> _processResponse(http.Response resp, {bool isList = false}) async {
+  Future<ApiResponse> _processResponse(http.Response resp, {bool isList = false, String? endpoint}) async {
     try {
       final body = utf8.decode(resp.bodyBytes);
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         final decoded = json.decode(body);
+        if (decoded is Map<String, dynamic>) {
+          return ApiResponse.fromMap(decoded);
+        }
         if (isList) {
           final list = decoded is List ? decoded : (decoded is Map ? (decoded['data'] ?? []) : []);
           return ApiResponse(ok: true, list: List<Map<String, dynamic>>.from(list));
         }
-        final map = decoded is Map<String, dynamic> ? decoded : (decoded is List && decoded.isNotEmpty ? decoded[0] : {});
+        final map = decoded is Map<String, dynamic> ? decoded : (decoded is List && decoded.isNotEmpty ? decoded[0] : <String, dynamic>{});
         final ok = map['resultado'] != -1 && map['id'] != -1;
-        return ApiResponse(ok: ok, data: map);
+        return ApiResponse(ok: ok, data: map, message: map['mensaje']?.toString());
       }
-      return ApiResponse(ok: false, error: 'Error ${resp.statusCode}');
+      String msg = 'Error ${resp.statusCode}';
+      String? code;
+      try {
+        final decoded = json.decode(body);
+        if (decoded is Map) {
+          msg = decoded['message']?.toString() ?? decoded['mensaje']?.toString() ?? msg;
+          code = decoded['code']?.toString();
+        }
+      } catch (_) {}
+      return ApiResponse(ok: false, error: msg, errorCode: code, statusCode: resp.statusCode);
     } catch (e) {
       return ApiResponse(ok: false, error: e.toString());
     }
@@ -59,7 +96,7 @@ class ApiService {
         headers: {'Content-Type': 'application/json; charset=utf-8'},
         body: json.encode(body),
       ).timeout(ApiConfig.timeout);
-      return _processResponse(resp);
+      return _processResponse(resp, endpoint: endpoint);
     } catch (e) {
       return ApiResponse(ok: false, error: e.toString());
     }
@@ -71,7 +108,7 @@ class ApiService {
       final resp = await http.get(url,
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       ).timeout(ApiConfig.timeout);
-      return _processResponse(resp, isList: true);
+      return _processResponse(resp, isList: true, endpoint: endpoint);
     } catch (e) {
       return ApiResponse(ok: false, error: e.toString());
     }
@@ -84,7 +121,7 @@ class ApiService {
       req.fields.addAll(fields);
       final streamed = await req.send().timeout(ApiConfig.timeout);
       final resp = await http.Response.fromStream(streamed);
-      return _processResponse(resp);
+      return _processResponse(resp, endpoint: endpoint);
     } catch (e) {
       return ApiResponse(ok: false, error: e.toString());
     }
@@ -93,10 +130,13 @@ class ApiService {
   Future<ApiResponse> registrarConductor(Map<String, dynamic> data) =>
       post('${ApiConfig.conductorEndpoint}/Registrar', data);
 
-  Future<ApiResponse> iniciarSesion(String account, String pass, {String? googleKey, String? dispositivoInfo}) =>
+  Future<ApiResponse> iniciarSesion(String account, String pass,
+      {String? googleKey, String? dispositivoInfo, String? sistemaOperativo}) =>
       post('${ApiConfig.conductorEndpoint}/IniciarSesion', {
         'account': account, 'pass': pass,
-        'googlekey': googleKey ?? '', 'dispositivoinfo': dispositivoInfo ?? '',
+        'googlekey': googleKey ?? '',
+        'dispositivoinfo': dispositivoInfo ?? '',
+        'sistemaoperativo': sistemaOperativo ?? '',
       });
 
   Future<ApiResponse> cerrarSesion(int idConductor, String uuidsesion) =>
@@ -108,13 +148,11 @@ class ApiService {
       get('${ApiConfig.conductorEndpoint}/ObtenerPerfil?idConductor=$idConductor');
 
   Future<ApiResponse> actualizarPerfil(Map<String, dynamic> data) =>
-      postForm('${ApiConfig.conductorEndpoint}/ActualizarPerfil', {
-        for (var e in data.entries) e.key: e.value?.toString() ?? '',
-      });
+      post('${ApiConfig.conductorEndpoint}/ActualizarPerfil', data);
 
   Future<ApiResponse> cambiarPassword(int idConductor, String passActual, String passNueva) =>
       post('${ApiConfig.conductorEndpoint}/CambiarPassword', {
-        'idConductor': idConductor, 'passActual': passActual, 'passNueva': passNueva,
+        'idConductor': idConductor, 'passActual': passActual, 'pass': passNueva,
       });
 
   Future<ApiResponse> actualizarUbicacion(int idConductor, String lat, String lng) =>
@@ -122,9 +160,12 @@ class ApiService {
         'idConductor': idConductor, 'lat': lat, 'lng': lng,
       });
 
-  Future<ApiResponse> cambiarEstatus(int idConductor, String estatus) =>
+  Future<ApiResponse> cambiarEstatus(int idConductor, String estatus,
+      {String? lat, String? lng}) =>
       post('${ApiConfig.conductorEndpoint}/CambiarEstatus', {
         'idConductor': idConductor, 'estatus': estatus,
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
       });
 
   Future<ApiResponse> obtenerServicioActivo(int idConductor) =>
@@ -135,15 +176,20 @@ class ApiService {
         'idServicio': idServicio, 'idConductor': idConductor,
       });
 
-  Future<ApiResponse> iniciarViaje(int idServicio, int idConductor) =>
+  Future<ApiResponse> iniciarViaje(int idServicio, int idConductor, String codigoInicio) =>
       post('${ApiConfig.conductorEndpoint}/IniciarViaje', {
-        'idServicio': idServicio, 'idConductor': idConductor,
+        'idServicio': idServicio, 'idConductor': idConductor, 'codigoInicio': codigoInicio,
       });
 
-  Future<ApiResponse> finalizarViaje(int idServicio, int idConductor, {double? costoFinal}) =>
+  Future<ApiResponse> finalizarViaje(int idServicio, int idConductor,
+      {double? costoFinal, String? lat, String? lng, int? rdM, int? rdS}) =>
       post('${ApiConfig.conductorEndpoint}/FinalizarViaje', {
         'idServicio': idServicio, 'idConductor': idConductor,
         if (costoFinal != null) 'costoFinal': costoFinal.toString(),
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+        if (rdM != null) 'rd_m': rdM,
+        if (rdS != null) 'rd_s': rdS,
       });
 
   Future<ApiResponse> listarUnidades(int idConductor) =>
@@ -163,9 +209,9 @@ class ApiService {
   Future<ApiResponse> obtenerSemanaCorte(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ObtenerSemanaCorte?idConductor=$idConductor');
 
-  Future<ApiResponse> transferirSemanaCorte(int idConductor, int idCorte) =>
+  Future<ApiResponse> transferirSemanaCorte(int idConductor, int idSemanaCorte) =>
       post('${ApiConfig.conductorEndpoint}/TransferirSemanaCorte', {
-        'idConductor': idConductor, 'idCorte': idCorte,
+        'idConductor': idConductor, 'idSemanaCorte': idSemanaCorte,
       });
 
   Future<ApiResponse> enviarMensaje(int idServicio, int idConductor, String mensaje) =>
@@ -176,19 +222,73 @@ class ApiService {
   Future<ApiResponse> obtenerMensajes(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ObtenerMensajesChat?idServicio=$idServicio&idConductor=$idConductor');
 
-  Future<ApiResponse> activarAlarmaSOS(int idConductor, double lat, double lng) =>
+  Future<ApiResponse> activarAlarmaSOS(int idServicio, int idConductor) =>
       post('${ApiConfig.conductorEndpoint}/ActivarAlarmaSOS', {
-        'idConductor': idConductor, 'lat': lat.toString(), 'lng': lng.toString(),
+        'idServicio': idServicio, 'idConductor': idConductor,
       });
 
   Future<ApiResponse> reportarIncidente(Map<String, dynamic> data) =>
-      postForm('${ApiConfig.conductorEndpoint}/ReportarIncidente', {
-        for (var e in data.entries) e.key: e.value?.toString() ?? '',
-      });
+      post('${ApiConfig.conductorEndpoint}/ReportarIncidente', data);
 
   Future<ApiResponse> obtenerNotificaciones(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ObtenerNotificaciones?idConductor=$idConductor');
 
-  Future<ApiResponse> obtenerAvisos() =>
-      get('${ApiConfig.conductorEndpoint}/ObtenerAvisos');
+  Future<ApiResponse> obtenerAvisos(int idCompania) =>
+      get('${ApiConfig.conductorEndpoint}/ObtenerAvisos?idCompania=$idCompania');
+
+  // ─── ENDPOINTS NUEVOS ─────────────────────────────────────────
+
+  Future<ApiResponse> llegarAlOrigen(int idServicio, int idConductor) =>
+      post('${ApiConfig.conductorEndpoint}/LlegarAlOrigen', {
+        'idServicio': idServicio, 'idConductor': idConductor,
+      });
+
+  Future<ApiResponse> rechazarServicio(int idServicio, int idConductor, {String? motivo}) =>
+      post('${ApiConfig.conductorEndpoint}/RechazarServicio', {
+        'idservicio': idServicio, 'idconductor': idConductor, if (motivo != null) 'motivo': motivo,
+      });
+
+  Future<ApiResponse> agregarUnidad(Map<String, dynamic> data) =>
+      post('${ApiConfig.conductorEndpoint}/AgregarUnidad', data);
+
+  Future<ApiResponse> calificarPasajero(int idServicio, int idConductor, int calificacion, {String? comentarios}) =>
+      post('${ApiConfig.conductorEndpoint}/CalificarPasajero', {
+        'idServicio': idServicio, 'idConductor': idConductor,
+        'calificacion': calificacion, 'comentarios': comentarios,
+      });
+
+  // ─── PARADAS INTERMEDIAS ─────────────────────────────────────
+
+  Future<ApiResponse> listarParadas(int idServicio) =>
+      get('/Servicio/ListarParadas?idservicio=$idServicio');
+
+  Future<ApiResponse> completarParada(int idParada, int idConductor) =>
+      post('/Servicio/CompletarParada', {'idParada': idParada, 'idConductor': idConductor});
+
+  // ─── SOPORTE ─────────────────────────────────────────────────
+
+  Future<ApiResponse> crearSolicitudSoporte(int idServicio, int idConductor, String asunto, String descripcion, {String prioridad = 'Normal'}) =>
+      post('/Soporte/CrearSolicitud', {
+        'idservicio': idServicio,
+        'idconductor': idConductor,
+        'tipoSolicitante': 'conductor',
+        'asunto': asunto,
+        'descripcion': descripcion,
+        'prioridad': prioridad,
+      });
+
+  Future<ApiResponse> listarMensajesSoporte(int idSolicitud) =>
+      get('/Soporte/ListarMensajes?idsolicitud=$idSolicitud');
+
+  Future<ApiResponse> enviarMensajeSoporte(int idSolicitud, String emisor, int idEmisor, String nombreEmisor, String mensaje) =>
+      post('/Soporte/EnviarMensaje', {
+        'idsolicitud': idSolicitud,
+        'emisor': emisor,
+        'idemisor': idEmisor,
+        'nombreEmisor': nombreEmisor,
+        'mensaje': mensaje,
+      });
+
+  Future<ApiResponse> obtenerSolicitudSoporte(int id) =>
+      get('/Soporte/ObtenerSolicitud?id=$id');
 }

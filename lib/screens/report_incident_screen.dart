@@ -5,17 +5,27 @@ import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
 class ReportIncidentScreen extends StatefulWidget {
-  const ReportIncidentScreen({super.key});
+  final int? idServicio;
+
+  const ReportIncidentScreen({super.key, this.idServicio});
   @override
   State<ReportIncidentScreen> createState() => _ReportIncidentScreenState();
 }
 
 class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
   final _descCtrl = TextEditingController();
-  String _tipo = 'Accidente';
+  int _idTipo = 5;
   bool _loading = false;
 
-  final _tipos = ['Accidente', 'Avería Mecánica', 'Cliente Problemático', 'Emergencia Médica', 'Otro'];
+  static const Map<int, String> _tipos = {
+    1: 'Problema con el Conductor',
+    2: 'Problema con el Pasajero',
+    3: 'Problema con la Unidad',
+    4: 'Problema de Pago',
+    5: 'Problema de Ruta',
+    6: 'Problema de Seguridad',
+    7: 'Queja General',
+  };
 
   @override
   void dispose() {
@@ -32,9 +42,10 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     final auth = context.read<AuthProvider>();
     final api = ApiService();
     final resp = await api.reportarIncidente({
-      'idConductor': auth.userId.toString(),
-      'tipo': _tipo,
-      'descripcion': _descCtrl.text.trim(),
+      if (widget.idServicio != null) 'idServicio': widget.idServicio,
+      'idConductor': auth.userId,
+      'idTipo': _idTipo,
+      'desc': _descCtrl.text.trim(),
     });
     setState(() => _loading = false);
     if (mounted) {
@@ -56,18 +67,23 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
           children: [
             const Text('Tipo de Incidente', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: _tipo,
-              items: _tipos.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-              onChanged: (v) => setState(() => _tipo = v ?? 'Accidente'),
+            DropdownButtonFormField<int>(
+              initialValue: _idTipo,
+              items: _tipos.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+              onChanged: (v) => setState(() => _idTipo = v ?? 5),
               decoration: const InputDecoration(prefixIcon: Icon(Icons.warning)),
             ),
+            if (widget.idServicio != null) ...[
+              const SizedBox(height: 8),
+              Text('Servicio #${widget.idServicio}', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
+            ],
             const SizedBox(height: 16),
-            const Text('Descripción', style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Descripcion', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextFormField(
               controller: _descCtrl,
               maxLines: 5,
+              maxLength: 500,
               decoration: const InputDecoration(hintText: 'Describa el incidente en detalle...', alignLabelWithHint: true),
             ),
             const SizedBox(height: 24),

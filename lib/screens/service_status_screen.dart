@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
+import 'report_incident_screen.dart';
 
 class ServiceStatusScreen extends StatefulWidget {
   const ServiceStatusScreen({super.key});
@@ -11,13 +13,35 @@ class ServiceStatusScreen extends StatefulWidget {
 }
 
 class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
+  final _codeCtrl = TextEditingController();
+  bool _showCodeInput = false;
+  bool _isStarting = false;
+  bool _isLlegando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = context.read<RideProvider>().activeRide;
+      if (s != null) context.read<RideProvider>().listarParadas(s.id);
+    });
+  }
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ride = context.watch<RideProvider>();
     final auth = context.watch<AuthProvider>();
     final s = ride.activeRide;
-    final isEnCamino = s?.servicioEstatus == 'En Camino' || s?.servicioEstatus == null;
-    final isEnViaje = s?.servicioEstatus == 'En Viaje';
+    final estatus = s?.servicioEstatus ?? '';
+    final isEnCamino = estatus == 'En Camino' || estatus.isEmpty;
+    final isLlegoOrigen = estatus == 'Llego al Origen';
+    final isEnViaje = estatus == 'En Viaje';
 
     return Scaffold(
       appBar: AppBar(
@@ -42,13 +66,13 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                             Text(s.pasajeroNombre ?? 'Pasajero', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             Text(s.pasajeroTelefono ?? '', style: const TextStyle(color: AppTheme.textMedium)),
                           ])),
-                          IconButton(icon: const Icon(Icons.phone, color: AppTheme.primary), onPressed: () {}),
+                          IconButton(icon: const Icon(Icons.phone, color: AppTheme.primary), onPressed: s.pasajeroTelefono != null ? () => _callPasajero(s.pasajeroTelefono!) : null),
                           IconButton(icon: const Icon(Icons.chat, color: AppTheme.primary), onPressed: () => Navigator.pushNamed(context, '/chat', arguments: {'servicioId': s.id, 'pasajero': s.pasajeroNombre ?? 'Pasajero'})),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -64,18 +88,76 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  if (isEnCamino)
+                  if (ride.paradas.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildParadasCard(ride),
+                  ],
+                  if (isEnCamino) ...[
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          await ride.startTrip(s.id, auth.userId);
-                          if (mounted) setState(() {});
-                        },
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text('Iniciar Viaje'),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent, padding: const EdgeInsets.symmetric(vertical: 16)),
+                        onPressed: _isLlegando
+                            ? null
+                            : () async {
+                                setState(() => _isLlegando = true);
+                                final ok = await ride.llegarAlOrigen(s.id, auth.userId);
+                                if (!mounted) return;
+                                setState(() => _isLlegando = false);
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: Text(ok ? 'Llegada registrada' : (ride.error ?? 'Error al registrar llegada')),
+                                  backgroundColor: ok ? AppTheme.accent : AppTheme.danger,
+                                ));
+                              },
+                        icon: _isLlegando
+                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.place_outlined),
+                        label: const Text('Llegue al origen'),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
+                      ),
+                    ),
+                  ],
+                  if (_showCodeInput) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _codeCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'Codigo de inicio',
+                              hintText: 'Ingresa el codigo del pasajero (000000 en pruebas)',
+                              prefixIcon: Icon(Icons.vpn_key_outlined),
+                            ),
+                            keyboardType: TextInputType.number,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) => _startTrip(ride, s.id, auth.userId),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _isStarting ? null : () => _startTrip(ride, s.id, auth.userId),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                          child: _isStarting
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Text('Iniciar'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Usa 000000 como codigo de prueba', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
+                  ],
+                  const Spacer(),
+                  if (isLlegoOrigen && !_showCodeInput)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => setState(() => _showCodeInput = true),
+                        icon: const Icon(Icons.vpn_key_outlined),
+                        label: const Text('Ingresar codigo de inicio'),
+                        style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
                       ),
                     ),
                   if (isEnViaje)
@@ -84,18 +166,154 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           final navigator = Navigator.of(context);
-                          await ride.finishTrip(s.id, auth.userId);
+                          final messenger = ScaffoldMessenger.of(context);
+                          final ok = await ride.finishTrip(s.id, auth.userId);
                           if (!mounted) return;
-                          navigator.pushReplacementNamed('/rating');
+                          if (ok) {
+                            navigator.pushReplacementNamed('/rating', arguments: {'servicioId': s.id, 'idPasajero': s.idPasajero});
+                          } else {
+                            messenger.showSnackBar(
+                              SnackBar(content: Text(ride.error ?? 'Error al finalizar'), backgroundColor: AppTheme.danger),
+                            );
+                          }
                         },
                         icon: const Icon(Icons.stop_circle),
                         label: const Text('Finalizar Viaje'),
                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger, padding: const EdgeInsets.symmetric(vertical: 16)),
                       ),
                     ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ReportIncidentScreen(idServicio: s.id),
+                              ),
+                            );
+                          },
+                          icon: Icon(Icons.report_problem_outlined, size: 18, color: AppTheme.textMedium),
+                          label: Text('Incidente', style: TextStyle(color: AppTheme.textMedium, fontSize: 13)),
+                        ),
+                      ),
+                      Expanded(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed('/support_chat',
+                                arguments: {'idServicio': s.id});
+                          },
+                          icon: const Icon(Icons.support_agent_rounded, size: 18, color: AppTheme.primary),
+                          label: const Text('Soporte', style: TextStyle(color: AppTheme.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
+    );
+  }
+
+  Future<void> _startTrip(RideProvider ride, int servicioId, int conductorId) async {
+    final code = _codeCtrl.text.trim();
+    if (code.isEmpty) return;
+    setState(() => _isStarting = true);
+    final ok = await ride.startTrip(servicioId, conductorId, code);
+    if (!mounted) return;
+    setState(() => _isStarting = false);
+    if (ok) {
+      setState(() => _showCodeInput = false);
+      _codeCtrl.clear();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Viaje iniciado'), backgroundColor: AppTheme.accent),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ride.error ?? 'Codigo incorrecto'), backgroundColor: AppTheme.danger),
+      );
+    }
+  }
+
+  Future<void> _callPasajero(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se puede realizar la llamada'), backgroundColor: AppTheme.danger),
+      );
+    }
+  }
+
+  Widget _buildParadasCard(RideProvider ride) {
+    final paradas = ride.paradas;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.alt_route, size: 18, color: Colors.orange.shade800),
+                const SizedBox(width: 6),
+                Text(
+                  'Paradas (${paradas.where((p) => p.completada).length}/${paradas.length})',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.orange.shade900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...paradas.map((p) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        p.completada ? Icons.check_circle : Icons.radio_button_unchecked,
+                        size: 18,
+                        color: p.completada ? AppTheme.accent : Colors.orange.shade700,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${p.orden}. ${p.direccion}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                decoration: p.completada ? TextDecoration.lineThrough : null,
+                                color: p.completada ? AppTheme.textLight : AppTheme.textDark,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!p.completada)
+                        TextButton(
+                          onPressed: () async {
+                            final ok = await ride.completarParada(p.id);
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text(ok ? 'Parada completada' : 'No se pudo completar'),
+                              backgroundColor: ok ? AppTheme.accent : AppTheme.danger,
+                            ));
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 32),
+                          ),
+                          child: const Text('Llegue', style: TextStyle(fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+      ),
     );
   }
 

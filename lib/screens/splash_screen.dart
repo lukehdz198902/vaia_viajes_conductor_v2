@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/vaia_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,26 +33,54 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primary,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120, height: 120,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(30),
-              ),
-              child: const Icon(Icons.directions_car, size: 60, color: AppTheme.primary),
+      body: Container(
+        decoration: const BoxDecoration(gradient: VaiaColors.heroGradient),
+        child: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.5),
+                  ),
+                  child: const VaiaLogo(size: 80, color: Colors.white),
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'Vaia Conductor',
+                  style: TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tu camino, tu ingreso',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withOpacity(0.85),
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 48),
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 24),
-            const Text('Vaia Viajes', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-            const SizedBox(height: 8),
-            Text('Conductor', style: TextStyle(fontSize: 18, color: Colors.white.withValues(alpha: 0.9))),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(color: Colors.white),
-          ],
+          ),
         ),
       ),
     );

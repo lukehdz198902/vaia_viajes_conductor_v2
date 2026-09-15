@@ -49,6 +49,34 @@ class Servicio {
     this.idCompania,
   });
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'idpasajero': idPasajero,
+      'pas_nombre': pasajeroNombre,
+      'pas_foto': pasajeroFoto,
+      'pas_tel': pasajeroTelefono,
+      'idconductor': idConductor,
+      'idunidad': idUnidad,
+      'idservicioestatus': idServicioEstatus,
+      'servicioEstatus': servicioEstatus,
+      'direccionorigen': direccionOrigen,
+      'latorigen': latOrigen,
+      'lngorigen': lngOrigen,
+      'direcciondestination': direccionDestino,
+      'latdestination': latDestino,
+      'lngdestination': lngDestino,
+      'distanciametros': distanciaMetros,
+      'costoestimado': costoEstimado,
+      'costofinal': costoFinal,
+      'tipoviaje': tipoViaje,
+      'fechacreacion': fechaCreacion,
+      'calificacion': calificacion,
+      'comentarios': comentarios,
+      'idcompania': idCompania,
+    };
+  }
+
   factory Servicio.fromJson(Map<String, dynamic> json) {
     return Servicio(
       id: _safeInt(json['id']) ?? 0,

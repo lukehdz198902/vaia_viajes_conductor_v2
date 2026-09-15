@@ -2,10 +2,14 @@ import 'package:flutter/foundation.dart';
 import '../models/conductor_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
+import '../services/signalr_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
   final StorageService _storage = StorageService();
+  final SignalRService _signalr;
+
+  AuthProvider(this._signalr);
 
   Conductor? _conductor;
   bool _loading = false;
@@ -24,17 +28,21 @@ class AuthProvider extends ChangeNotifier {
     final data = await _storage.getUserData();
     if (data['id'] != 0) {
       _conductor = Conductor.fromJson(data);
+      try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
     }
   }
 
-  Future<bool> login(String account, String password) async {
+  Future<bool> login(String account, String password,
+      {String? dispositivoInfo, String? sistemaOperativo}) async {
     _loading = true; _error = null; notifyListeners();
-    final resp = await _api.iniciarSesion(account, password);
+    final resp = await _api.iniciarSesion(account, password,
+        dispositivoInfo: dispositivoInfo, sistemaOperativo: sistemaOperativo);
     _loading = false;
     if (resp.ok && resp.data != null) {
       _conductor = Conductor.fromJson(resp.data!);
       await _storage.saveUserData(resp.data!);
+      try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
       return true;
     }
@@ -47,6 +55,7 @@ class AuthProvider extends ChangeNotifier {
     if (_conductor != null) {
       await _api.cerrarSesion(_conductor!.id, _conductor!.uuidsesion ?? '');
     }
+    try { await _signalr.detener(); } catch (_) {}
     _conductor = null;
     _isOnline = false;
     await _storage.clearAll();

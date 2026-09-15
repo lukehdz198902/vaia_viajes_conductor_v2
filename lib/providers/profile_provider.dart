@@ -44,8 +44,8 @@ class ProfileProvider extends ChangeNotifier {
   Future<void> loadCorte(int conductorId) async {
     _loading = true; notifyListeners();
     final resp = await _api.obtenerSemanaCorte(conductorId);
-    if (resp.ok && resp.data != null) {
-      _currentCorte = CorteSemanal.fromJson(resp.data!);
+    if (resp.ok && resp.list != null && resp.list!.isNotEmpty) {
+      _currentCorte = CorteSemanal.fromJson(resp.list!.first as Map<String, dynamic>);
     }
     _loading = false; notifyListeners();
   }

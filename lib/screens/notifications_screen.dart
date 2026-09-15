@@ -26,7 +26,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final auth = context.read<AuthProvider>();
     final api = ApiService();
     final notifResp = await api.obtenerNotificaciones(auth.userId);
-    final avisosResp = await api.obtenerAvisos();
+    final avisosResp = await api.obtenerAvisos(auth.conductor?.idCompania ?? 1);
     if (mounted) {
       setState(() {
         if (notifResp.ok && notifResp.list != null) _notifications = notifResp.list!.map((e) => Notificacion.fromJson(e)).toList();

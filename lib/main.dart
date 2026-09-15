@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config/theme.dart';
+import 'services/signalr_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/soporte_provider.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
@@ -21,15 +23,22 @@ import 'screens/chat_screen.dart';
 import 'screens/notifications_screen.dart';
 import 'screens/report_incident_screen.dart';
 import 'screens/rating_screen.dart';
+import 'screens/support_chat_screen.dart';
 
 void main() {
+  final signalr = SignalRService();
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => RideProvider()),
+        Provider<SignalRService>.value(value: signalr),
+        ChangeNotifierProvider(create: (_) => AuthProvider(signalr)),
+        ChangeNotifierProvider(create: (_) => RideProvider(signalr)),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider(signalr)),
+        ChangeNotifierProxyProvider<AuthProvider, SoporteProvider>(
+          create: (ctx) => SoporteProvider(signalr, ctx.read<AuthProvider>()),
+          update: (_, auth, prev) => prev!..updateAuth(auth),
+        ),
       ],
       child: const VaiaViajesApp(),
     ),
@@ -48,6 +57,7 @@ class VaiaViajesApp extends StatelessWidget {
       initialRoute: '/splash',
       onGenerateRoute: (settings) {
         Widget page;
+        final args = settings.arguments is Map ? settings.arguments as Map : <String, dynamic>{};
         switch (settings.name) {
           case '/splash':
             page = const SplashScreen();
@@ -81,6 +91,11 @@ class VaiaViajesApp extends StatelessWidget {
             page = const ReportIncidentScreen();
           case '/rating':
             page = const RatingScreen();
+          case '/support_chat':
+            page = SupportChatScreen(
+              idServicio: args['idServicio'] ?? 0,
+              idSolicitudExistente: args['idSolicitudExistente'],
+            );
           default:
             page = const SplashScreen();
         }
