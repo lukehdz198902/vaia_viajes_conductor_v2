@@ -23,7 +23,17 @@ class RideProvider extends ChangeNotifier {
   bool _loading = false;
   String? _error;
   Timer? _pollTimer;
-  Timer? _gpsTimer;
+  Timer? _presenceTimer;
+  Timer? _latidoTimer;
+  int _idConductorPresencia = 0;
+  int _idServicioGps = 0;
+  // Taximetro
+  bool _taxiActivo = false;
+  double _distanciaTaxi = 0;
+  double? _ultLatTaxi;
+  double? _ultLngTaxi;
+  DateTime? _inicioViajeTaxi;
+  double? _costoEnCurso;
   bool _hasNewRequest = false;
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
@@ -39,6 +49,7 @@ class RideProvider extends ChangeNotifier {
   List<Servicio> get history => _history;
   List<ParadaModel> get paradas => _paradas;
   bool get conectadoWs => _conectadoWs;
+  double? get costoEnCurso => _costoEnCurso;
 
   // ─── SIGNALR ─────────────────────────────────────────────────
 
@@ -60,6 +71,7 @@ class RideProvider extends ChangeNotifier {
             'lngdestination': event.data['lngDestino'] ?? '',
             'costoestimado': event.data['costoEstimado'] ?? 0,
             'distanciametros': event.data['distanciaMetros'] ?? 0,
+            'segundosparatomar': event.data['segundosParaTomar'] ?? event.data['segundosparatomar'] ?? 30,
             'servicioEstatus': 'Solicitado',
           });
           _hasNewRequest = true;
@@ -111,7 +123,7 @@ class RideProvider extends ChangeNotifier {
         _hasNewRequest = true;
         await _signalr.unirseAServicio(servicio.id);
         await listarParadas(servicio.id);
-        _startGps(servicio.id);
+        _startGps(servicio.id, conductorId);
       }
       notifyListeners();
     } else if (resp.ok) {
@@ -124,40 +136,126 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  // ─── GPS ─────────────────────────────────────────────────────
+  // ─── PRESENCIA Y GPS ─────────────────────────────────────────
+  //
+  // El conductor reporta su ubicacion SIEMPRE que esta conectado
+  // (disponible o en viaje) y envia un latido para que el sistema
+  // sepa que sigue activo. Se usa WebSocket si esta conectado; si no,
+  // la API REST como respaldo. La persistencia ocurre en el servidor.
 
-  void _startGps(int idServicio) {
-    _gpsTimer?.cancel();
-    _reportarUbicacion(idServicio);
-    _gpsTimer = Timer.periodic(const Duration(seconds: 12), (_) => _reportarUbicacion(idServicio));
+  /// Inicia el reporte continuo de ubicacion y el latido (heartbeat).
+  void iniciarPresencia(int conductorId) {
+    if (conductorId <= 0) return;
+    if (_idConductorPresencia == conductorId && _presenceTimer != null) return;
+
+    _idConductorPresencia = conductorId;
+    _latidoTimer?.cancel();
+
+    _reportarPresencia();
+    _signalr.latido();
+
+    _reiniciarTimerPresencia();
+    _latidoTimer = Timer.periodic(const Duration(seconds: 30), (_) => _signalr.latido());
+  }
+
+  /// Ajusta la frecuencia de reporte segun el estado: en viaje 12 s
+  /// (seguimiento preciso), disponible 30 s (menor carga al servidor).
+  void _reiniciarTimerPresencia() {
+    _presenceTimer?.cancel();
+    if (_idConductorPresencia <= 0) return;
+    final segundos = _idServicioGps > 0 ? 12 : 30;
+    _presenceTimer = Timer.periodic(Duration(seconds: segundos), (_) => _reportarPresencia());
+  }
+
+  /// Detiene el reporte de ubicacion y el latido (al cerrar sesion).
+  void detenerPresencia() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+    _latidoTimer?.cancel();
+    _latidoTimer = null;
+    _idConductorPresencia = 0;
+    _idServicioGps = 0;
+  }
+
+  Future<void> _reportarPresencia() async {
+    if (_idConductorPresencia <= 0) return;
+    try {
+      final enViaje = _idServicioGps > 0;
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(
+          accuracy: enViaje ? LocationAccuracy.high : LocationAccuracy.medium,
+        ),
+      );
+      if (_conectadoWs) {
+        await _signalr.reportarUbicacion(pos.latitude, pos.longitude,
+            idServicio: enViaje ? _idServicioGps : null);
+      } else {
+        await _api.actualizarUbicacion(
+            _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
+      }
+      if (_taxiActivo) await _reportarTaximetro(pos);
+    } catch (_) {}
+  }
+
+  // ─── TAXIMETRO ───────────────────────────────────────────────
+
+  void iniciarTaximetro() {
+    _taxiActivo = true;
+    _distanciaTaxi = 0;
+    _ultLatTaxi = null;
+    _ultLngTaxi = null;
+    _inicioViajeTaxi = DateTime.now();
+    _costoEnCurso = null;
+    notifyListeners();
+  }
+
+  void detenerTaximetro() {
+    _taxiActivo = false;
+    _inicioViajeTaxi = null;
+  }
+
+  Future<void> _reportarTaximetro(Position pos) async {
+    if (!_taxiActivo || _idServicioGps <= 0 || _inicioViajeTaxi == null) return;
+    if (_ultLatTaxi != null && _ultLngTaxi != null) {
+      final d = Geolocator.distanceBetween(_ultLatTaxi!, _ultLngTaxi!, pos.latitude, pos.longitude);
+      if (d > 3 && d < 500) _distanciaTaxi += d;
+    }
+    _ultLatTaxi = pos.latitude;
+    _ultLngTaxi = pos.longitude;
+    final dur = DateTime.now().difference(_inicioViajeTaxi!).inSeconds;
+    try {
+      final resp = await _api.actualizarTaximetro(
+          _idServicioGps, _idConductorPresencia, _distanciaTaxi.round(), dur);
+      if (resp.ok && resp.data != null && resp.data!['costo'] != null) {
+        _costoEnCurso = double.tryParse(resp.data!['costo'].toString());
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  Future<bool> registrarPago(int servicioId, int conductorId, double monto,
+      {String metodo = 'CASH'}) async {
+    try {
+      final resp = await _api.registrarPago(servicioId, conductorId, monto, metodo: metodo);
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _startGps(int idServicio, [int? idConductor]) {
+    _idServicioGps = idServicio;
+    if (idConductor != null && idConductor > 0) _idConductorPresencia = idConductor;
+    if (_presenceTimer == null && _idConductorPresencia > 0) {
+      iniciarPresencia(_idConductorPresencia);
+    } else {
+      _reiniciarTimerPresencia();
+    }
   }
 
   void _stopGps() {
-    _gpsTimer?.cancel();
-    _gpsTimer = null;
-  }
-
-  Future<void> _reportarUbicacion(int idServicio) async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      // Actualizar en BD
-      await _api.actualizarUbicacion(_activeRide?.idConductor ?? 0, pos.latitude.toString(), pos.longitude.toString());
-      // Emitir por WebSocket
-      await _signalr.reportarUbicacion(pos.latitude, pos.longitude, idServicio: idServicio);
-    } catch (_) {}
-  }
-
-  /// Reporte manual de ubicacion (cuando el conductor esta disponible).
-  Future<void> reportarUbicacionDisponible(int idConductor) async {
-    try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-      );
-      await _api.actualizarUbicacion(idConductor, pos.latitude.toString(), pos.longitude.toString());
-      await _signalr.reportarUbicacion(pos.latitude, pos.longitude);
-    } catch (_) {}
+    _idServicioGps = 0;
+    _reiniciarTimerPresencia();
   }
 
   // ─── ACCIONES DEL SERVICIO ───────────────────────────────────
@@ -172,7 +270,7 @@ class RideProvider extends ChangeNotifier {
       _hasNewRequest = false;
       await _signalr.unirseAServicio(servicioId);
       await listarParadas(servicioId);
-      _startGps(servicioId);
+      _startGps(servicioId, conductorId);
       notifyListeners();
       return true;
     }
@@ -226,6 +324,7 @@ class RideProvider extends ChangeNotifier {
           'servicioiniciado': true,
         });
       }
+      iniciarTaximetro();
       notifyListeners();
       return true;
     }
@@ -243,6 +342,7 @@ class RideProvider extends ChangeNotifier {
     if (resp.ok) {
       await _signalr.salirDeServicio(servicioId);
       _stopGps();
+      detenerTaximetro();
       _activeRide = null;
       _paradas.clear();
       notifyListeners();
@@ -329,7 +429,7 @@ class RideProvider extends ChangeNotifier {
   @override
   void dispose() {
     stopPolling();
-    _stopGps();
+    detenerPresencia();
     _subEventos?.cancel();
     _subConexion?.cancel();
     super.dispose();

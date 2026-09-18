@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'config/theme.dart';
 import 'services/signalr_service.dart';
+import 'services/notification_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
@@ -25,7 +26,9 @@ import 'screens/report_incident_screen.dart';
 import 'screens/rating_screen.dart';
 import 'screens/support_chat_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.inicializar();
   final signalr = SignalRService();
   runApp(
     MultiProvider(
@@ -90,7 +93,7 @@ class VaiaViajesApp extends StatelessWidget {
           case '/report_incident':
             page = const ReportIncidentScreen();
           case '/rating':
-            page = const RatingScreen();
+            page = RatingScreen(idServicio: (args['servicioId'] as num?)?.toInt());
           case '/support_chat':
             page = SupportChatScreen(
               idServicio: args['idServicio'] ?? 0,

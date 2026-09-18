@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../config/theme.dart';
+import '../providers/auth_provider.dart';
+import '../providers/ride_provider.dart';
 
 class RatingScreen extends StatefulWidget {
-  const RatingScreen({super.key});
+  final int? idServicio;
+  const RatingScreen({super.key, this.idServicio});
   @override
   State<RatingScreen> createState() => _RatingScreenState();
 }
 
 class _RatingScreenState extends State<RatingScreen> {
   int _rating = 0;
+  bool _enviando = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,8 +45,23 @@ class _RatingScreenState extends State<RatingScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-                  child: const Text('Finalizar'),
+                  onPressed: _enviando
+                      ? null
+                      : () async {
+                          final ride = context.read<RideProvider>();
+                          final auth = context.read<AuthProvider>();
+                          final navigator = Navigator.of(context);
+                          if (_rating > 0 && widget.idServicio != null) {
+                            setState(() => _enviando = true);
+                            await ride.calificarPasajero(widget.idServicio!, auth.userId, _rating);
+                            if (!mounted) return;
+                            setState(() => _enviando = false);
+                          }
+                          navigator.pushReplacementNamed('/home');
+                        },
+                  child: _enviando
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : const Text('Finalizar'),
                 ),
               ),
             ],

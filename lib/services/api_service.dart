@@ -192,6 +192,28 @@ class ApiService {
         if (rdS != null) 'rd_s': rdS,
       });
 
+  /// Taximetro: reporta distancia/tiempo acumulados y obtiene el costo en vivo.
+  Future<ApiResponse> actualizarTaximetro(int idServicio, int idConductor, int distanciaMetros, int duracionSegundos) =>
+      post('${ApiConfig.conductorEndpoint}/ActualizarTaximetro', {
+        'idServicio': idServicio, 'idConductor': idConductor,
+        'distanciaMetros': distanciaMetros, 'duracionSegundos': duracionSegundos,
+      });
+
+  /// Registra el pago del servicio (efectivo por defecto) y dispara el comprobante por correo.
+  Future<ApiResponse> registrarPago(int idServicio, int idConductor, double monto,
+      {String metodo = 'CASH', String? referencia}) =>
+      post('${ApiConfig.conductorEndpoint}/RegistrarPago', {
+        'idServicio': idServicio, 'idConductor': idConductor,
+        'monto': monto.toString(), 'metodo': metodo,
+        if (referencia != null) 'referencia': referencia,
+      });
+
+  /// Registra/actualiza el token de notificaciones push (FCM) del conductor.
+  Future<ApiResponse> actualizarToken(int idConductor, String token) =>
+      post('${ApiConfig.conductorEndpoint}/ActualizarToken', {
+        'idConductor': idConductor, 'googlekey': token,
+      });
+
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
 

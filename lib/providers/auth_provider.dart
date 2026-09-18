@@ -3,6 +3,7 @@ import '../models/conductor_model.dart';
 import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/signalr_service.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -30,7 +31,17 @@ class AuthProvider extends ChangeNotifier {
       _conductor = Conductor.fromJson(data);
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
+      _registrarToken();
     }
+  }
+
+  /// Registra el token de notificaciones push (FCM) en el backend.
+  Future<void> _registrarToken() async {
+    final t = NotificationService.token;
+    if (t == null || t.isEmpty || _conductor == null) return;
+    try {
+      await _api.actualizarToken(_conductor!.id, t);
+    } catch (_) {}
   }
 
   Future<bool> login(String account, String password,
@@ -44,6 +55,7 @@ class AuthProvider extends ChangeNotifier {
       await _storage.saveUserData(resp.data!);
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
+      _registrarToken();
       return true;
     }
     _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Error al iniciar sesión');

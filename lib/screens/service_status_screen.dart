@@ -160,28 +160,39 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, padding: const EdgeInsets.symmetric(vertical: 16)),
                       ),
                     ),
-                  if (isEnViaje)
+                  if (isEnViaje) ...[
+                    // Taximetro en vivo
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accent.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.accent.withValues(alpha: 0.35)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Text('Cobro hasta el momento',
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.accent)),
+                          const SizedBox(height: 4),
+                          Text(
+                            '\$${(ride.costoEnCurso ?? s.costoEstimado ?? 0).toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final navigator = Navigator.of(context);
-                          final messenger = ScaffoldMessenger.of(context);
-                          final ok = await ride.finishTrip(s.id, auth.userId);
-                          if (!mounted) return;
-                          if (ok) {
-                            navigator.pushReplacementNamed('/rating', arguments: {'servicioId': s.id, 'idPasajero': s.idPasajero});
-                          } else {
-                            messenger.showSnackBar(
-                              SnackBar(content: Text(ride.error ?? 'Error al finalizar'), backgroundColor: AppTheme.danger),
-                            );
-                          }
-                        },
-                        icon: const Icon(Icons.stop_circle),
-                        label: const Text('Finalizar Viaje'),
+                        onPressed: () => _cobrarYFinalizar(ride, s.id, auth.userId, ride.costoEnCurso ?? s.costoEstimado),
+                        icon: const Icon(Icons.payments_outlined),
+                        label: const Text('Finalizar y cobrar'),
                         style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger, padding: const EdgeInsets.symmetric(vertical: 16)),
                       ),
                     ),
+                  ],
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -315,6 +326,65 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
         ),
       ),
     );
+  }
+
+  /// Cobro en efectivo: el conductor ingresa el monto recibido y se finaliza el viaje.
+  Future<void> _cobrarYFinalizar(RideProvider ride, int servicioId, int conductorId, double? sugerido) async {
+    final controller = TextEditingController(
+      text: sugerido != null ? sugerido.toStringAsFixed(2) : '',
+    );
+    final monto = await showDialog<double>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cobrar servicio'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (sugerido != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text('Total del taximetro: \$${sugerido.toStringAsFixed(2)}',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Monto recibido (efectivo)',
+                prefixText: '\$ ',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () {
+              final v = double.tryParse(controller.text.trim().replaceAll(',', '.'));
+              Navigator.pop(ctx, v);
+            },
+            child: const Text('Confirmar cobro'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (monto == null) return;
+
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await ride.finishTrip(servicioId, conductorId, costoFinal: monto);
+    if (!mounted) return;
+    if (!ok) {
+      messenger.showSnackBar(SnackBar(content: Text(ride.error ?? 'Error al finalizar'), backgroundColor: AppTheme.danger));
+      return;
+    }
+    await ride.registrarPago(servicioId, conductorId, monto, metodo: 'CASH');
+    if (!mounted) return;
+    navigator.pushReplacementNamed('/rating', arguments: {'servicioId': servicioId});
   }
 
   Widget _stepRow(IconData icon, String label, String address, bool active) {

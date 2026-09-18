@@ -14,17 +14,27 @@ class ServiceAlertScreen extends StatefulWidget {
 class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
   bool _procesando = false;
   int _segundosRestantes = 30;
+  int _segundosTotales = 30;
   Timer? _countdown;
 
   @override
   void initState() {
     super.initState();
-    _iniciarContador();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final ride = context.read<RideProvider>();
+      final s = ride.servicioOfrecido ?? ride.activeRide;
+      final total = s?.segundosParaTomar ?? 30;
+      setState(() {
+        _segundosTotales = total > 0 ? total : 30;
+        _segundosRestantes = _segundosTotales;
+      });
+      _iniciarContador();
+    });
   }
 
   void _iniciarContador() {
     _countdown?.cancel();
-    _segundosRestantes = 30;
     _countdown = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
       setState(() => _segundosRestantes--);
@@ -88,7 +98,7 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
                             alignment: Alignment.center,
                             children: [
                               CircularProgressIndicator(
-                                value: _segundosRestantes / 30,
+                                value: _segundosTotales > 0 ? _segundosRestantes / _segundosTotales : 0,
                                 strokeWidth: 3,
                                 backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
                                 valueColor: const AlwaysStoppedAnimation(AppTheme.primary),

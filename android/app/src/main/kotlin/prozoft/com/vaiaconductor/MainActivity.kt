@@ -1,4 +1,4 @@
-package com.vaiaviajes.vaia_viajes_conductor_v2
+package prozoft.com.vaiaconductor
 
 import io.flutter.embedding.android.FlutterActivity
 

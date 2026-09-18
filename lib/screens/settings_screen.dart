@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -74,7 +75,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: OutlinedButton.icon(
               onPressed: () async {
                 final auth = context.read<AuthProvider>();
+                final ride = context.read<RideProvider>();
                 final navigator = Navigator.of(context);
+                ride.stopPolling();
+                ride.detenerPresencia();
                 await auth.logout();
                 if (mounted) navigator.pushReplacementNamed('/login');
               },

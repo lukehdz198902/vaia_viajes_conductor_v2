@@ -13,21 +13,27 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  RideProvider? _ride;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final auth = context.read<AuthProvider>();
       final ride = context.read<RideProvider>();
+      _ride = ride;
       if (auth.isLoggedIn) {
         ride.startPolling(auth.userId);
+        ride.iniciarPresencia(auth.userId);
       }
     });
   }
 
   @override
   void dispose() {
-    context.read<RideProvider>().stopPolling();
+    _ride?.stopPolling();
+    _ride?.detenerPresencia();
     super.dispose();
   }
 
