@@ -5,6 +5,7 @@ import '../models/servicio_model.dart';
 import '../models/parada_model.dart';
 import '../services/api_service.dart';
 import '../services/signalr_service.dart';
+import '../services/foreground_service.dart';
 
 class RideProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -15,6 +16,7 @@ class RideProvider extends ChangeNotifier {
     _subConexion = _signalr.estadoConexion.listen((c) {
       _conectadoWs = c;
       notifyListeners();
+      _actualizarNotificacion();
     });
   }
 
@@ -34,6 +36,7 @@ class RideProvider extends ChangeNotifier {
   double? _ultLngTaxi;
   DateTime? _inicioViajeTaxi;
   double? _costoEnCurso;
+  DateTime? _ultimaUbicacion;
   bool _hasNewRequest = false;
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
@@ -50,6 +53,7 @@ class RideProvider extends ChangeNotifier {
   List<ParadaModel> get paradas => _paradas;
   bool get conectadoWs => _conectadoWs;
   double? get costoEnCurso => _costoEnCurso;
+  DateTime? get ultimaUbicacion => _ultimaUbicacion;
 
   // ─── SIGNALR ─────────────────────────────────────────────────
 
@@ -156,6 +160,13 @@ class RideProvider extends ChangeNotifier {
 
     _reiniciarTimerPresencia();
     _latidoTimer = Timer.periodic(const Duration(seconds: 30), (_) => _signalr.latido());
+
+    // Servicio en primer plano: mantiene la app viva al minimizar/cerrar
+    // y muestra el estado de conexion y la ultima ubicacion enviada.
+    ForegroundServiceManager.iniciar(
+      titulo: 'Vaia Conductor - En servicio',
+      texto: _textoNotificacion(),
+    );
   }
 
   /// Ajusta la frecuencia de reporte segun el estado: en viaje 12 s
@@ -175,6 +186,7 @@ class RideProvider extends ChangeNotifier {
     _latidoTimer = null;
     _idConductorPresencia = 0;
     _idServicioGps = 0;
+    ForegroundServiceManager.detener();
   }
 
   Future<void> _reportarPresencia() async {
@@ -193,8 +205,31 @@ class RideProvider extends ChangeNotifier {
         await _api.actualizarUbicacion(
             _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
       }
+      _ultimaUbicacion = DateTime.now();
+      _actualizarNotificacion();
       if (_taxiActivo) await _reportarTaximetro(pos);
     } catch (_) {}
+  }
+
+  // ─── NOTIFICACION DE ESTADO (servicio en primer plano) ───────
+
+  String _textoNotificacion() {
+    final estado = _conectadoWs ? '\u{1F7E2} Conectado' : '\u{26AA} Sin conexion';
+    final ult = _ultimaUbicacion != null
+        ? 'Ultima ubicacion: ${_hora(_ultimaUbicacion!)}'
+        : 'Sin ubicacion enviada';
+    return '$estado  -  $ult';
+  }
+
+  String _hora(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
+
+  void _actualizarNotificacion() {
+    if (_presenceTimer == null) return;
+    ForegroundServiceManager.actualizar(
+      titulo: 'Vaia Conductor - En servicio',
+      texto: _textoNotificacion(),
+    );
   }
 
   // ─── TAXIMETRO ───────────────────────────────────────────────
