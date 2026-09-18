@@ -6,6 +6,7 @@ import '../models/parada_model.dart';
 import '../services/api_service.dart';
 import '../services/signalr_service.dart';
 import '../services/foreground_service.dart';
+import '../services/bubble_overlay.dart';
 
 class RideProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -167,6 +168,19 @@ class RideProvider extends ChangeNotifier {
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
     );
+    _prepararBurbuja();
+  }
+
+  /// Verifica el permiso de overlay y muestra la burbuja flotante.
+  Future<void> _prepararBurbuja() async {
+    try {
+      final ok = await BubbleOverlay.tienePermiso();
+      if (!ok) {
+        await BubbleOverlay.solicitarPermiso();
+        return;
+      }
+      await BubbleOverlay.mostrar(conectado: _conectadoWs, ultima: _horaActual());
+    } catch (_) {}
   }
 
   /// Ajusta la frecuencia de reporte segun el estado: en viaje 12 s
@@ -187,6 +201,7 @@ class RideProvider extends ChangeNotifier {
     _idConductorPresencia = 0;
     _idServicioGps = 0;
     ForegroundServiceManager.detener();
+    BubbleOverlay.ocultar();
   }
 
   Future<void> _reportarPresencia() async {
@@ -224,12 +239,17 @@ class RideProvider extends ChangeNotifier {
   String _hora(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
 
+  String _horaActual() =>
+      _ultimaUbicacion != null ? _hora(_ultimaUbicacion!) : '--:--:--';
+
   void _actualizarNotificacion() {
     if (_presenceTimer == null) return;
     ForegroundServiceManager.actualizar(
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
     );
+    // Actualiza la burbuja flotante (si el permiso esta concedido)
+    BubbleOverlay.mostrar(conectado: _conectadoWs, ultima: _horaActual());
   }
 
   // ─── TAXIMETRO ───────────────────────────────────────────────
