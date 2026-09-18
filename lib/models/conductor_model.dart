@@ -9,6 +9,7 @@ class Conductor {
   final String correo;
   final String telefono;
   final bool? telefonoConfirmado;
+  final bool? correoConfirmado;
   final String? fotoPerfil;
   final String account;
   final int? idConductorEstatus;
@@ -45,6 +46,7 @@ class Conductor {
     required this.correo,
     required this.telefono,
     this.telefonoConfirmado,
+    this.correoConfirmado,
     this.fotoPerfil,
     required this.account,
     this.idConductorEstatus,
@@ -85,6 +87,7 @@ class Conductor {
       correo: json['correo']?.toString() ?? '',
       telefono: json['telefono']?.toString() ?? '',
       telefonoConfirmado: _safeBool(json['telefonoconfirmado']),
+      correoConfirmado: _safeBool(json['correoconfirmado']),
       fotoPerfil: json['fotoperfil']?.toString(),
       account: json['account']?.toString() ?? '',
       idConductorEstatus: _safeInt(json['idconductorestatus']),
@@ -111,6 +114,37 @@ class Conductor {
       uuidsesion: json['uuidsesion']?.toString(),
     );
   }
+
+  /// Representacion en mapa con las claves que espera [Conductor.fromJson].
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'idcompania': idCompania,
+        'idzonacobertura': idZonaCobertura,
+        'nombre': nombre,
+        'appaterno': appaterno,
+        'apmaterno': apmaterno,
+        'sexo': sexo,
+        'correo': correo,
+        'telefono': telefono,
+        'telefonoconfirmado': telefonoConfirmado,
+        'correoconfirmado': correoConfirmado,
+        'fotoperfil': fotoPerfil,
+        'account': account,
+        'idconductorestatus': idConductorEstatus,
+        'conductorestatus': conductorEstatus,
+        'documentacionaprobada': documentacionAprobada,
+        'idestatusdocumentacion': idEstatusDocumentacion,
+        'nombreestatusdocs': nombreEstatusDocs,
+        'bloqueado': bloqueado,
+        'curp': curp,
+        'rfc': rfc,
+        'licenciaconducir': licenciaConducir,
+        'fechavencimientolicencia': fechaVencimientoLicencia,
+        'calificacionpromedio': calificacionPromedio,
+        'totalviajes': totalViajes,
+        'nombrezona': nombreZona,
+        'uuidsesion': uuidsesion,
+      };
 
   static int? _safeInt(dynamic v) => v == null ? null : int.tryParse(v.toString());
   static double? _safeDouble(dynamic v) => v == null ? null : double.tryParse(v.toString());

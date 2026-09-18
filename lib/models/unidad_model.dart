@@ -13,6 +13,8 @@ class Unidad {
   final String? vigenciaPoliza;
   final String? fotoUrl;
   final bool? enUso;
+  final bool? aprobada;
+  final int? documentos;
   final String? nombre;
 
   Unidad({
@@ -30,12 +32,14 @@ class Unidad {
     this.vigenciaPoliza,
     this.fotoUrl,
     this.enUso,
+    this.aprobada,
+    this.documentos,
     this.nombre,
   });
 
   factory Unidad.fromJson(Map<String, dynamic> json) {
     return Unidad(
-      id: _safeInt(json['id']) ?? 0,
+      id: _safeInt(json['idunidad']) ?? _safeInt(json['id']) ?? 0,
       idCompania: _safeInt(json['idcompania']),
       marca: json['marca']?.toString(),
       modelo: json['modelo']?.toString(),
@@ -49,6 +53,8 @@ class Unidad {
       vigenciaPoliza: json['vigenciapoliza']?.toString(),
       fotoUrl: json['fotourl']?.toString(),
       enUso: _safeBool(json['enuso']),
+      aprobada: _safeBool(json['aprobada']),
+      documentos: _safeInt(json['documentos']),
       nombre: json['nombre']?.toString(),
     );
   }

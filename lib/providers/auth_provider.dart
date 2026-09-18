@@ -35,6 +35,69 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // ─── VERIFICACION DE TELEFONO / CORREO ───────────────────────
+
+  Future<bool> enviarCodigoVerificacion(String telefono, String codigopaistel) async {
+    try {
+      final resp = await _api.enviarCodigoVerificacion(telefono, codigopaistel);
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> validarCodigoVerificacion(String telefono, String codigopaistel, String codigo) async {
+    try {
+      final resp = await _api.validarCodigoVerificacion(telefono, codigopaistel, codigo);
+      if (!resp.ok) _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Codigo invalido');
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> enviarCodigoCorreo() async {
+    if (_conductor == null) return false;
+    try {
+      final resp = await _api.enviarCodigoCorreo(_conductor!.id, _conductor!.correo);
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> validarCodigoCorreo(String codigo) async {
+    if (_conductor == null) return false;
+    try {
+      final resp = await _api.validarCodigoCorreo(_conductor!.correo, codigo);
+      if (resp.ok) {
+        _conductor = Conductor.fromJson({..._conductor!.toMap(), 'correoconfirmado': true});
+        notifyListeners();
+      } else {
+        _error = resp.mensaje.isNotEmpty ? resp.mensaje : 'Codigo invalido';
+      }
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> actualizarCorreo(String correo) async {
+    if (_conductor == null) return false;
+    try {
+      final resp = await _api.actualizarCorreo(_conductor!.id, correo);
+      if (resp.ok) {
+        _conductor = Conductor.fromJson({..._conductor!.toMap(), 'correo': correo, 'correoconfirmado': false});
+        notifyListeners();
+      } else {
+        _error = resp.mensaje.isNotEmpty ? resp.mensaje : 'No se pudo actualizar el correo';
+      }
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Registra el token de notificaciones push (FCM) en el backend.
   Future<void> _registrarToken() async {
     final t = NotificationService.token;
@@ -87,14 +150,19 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  Future<void> toggleOnline() async {
-    if (_conductor == null) return;
+  Future<bool> toggleOnline() async {
+    if (_conductor == null) return false;
     final newStatus = _isOnline ? 'Desconectado' : 'Disponible';
+    _error = null;
     final resp = await _api.cambiarEstatus(_conductor!.id, newStatus);
     if (resp.ok) {
       _isOnline = !_isOnline;
       notifyListeners();
+      return true;
     }
+    _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'No se pudo cambiar el estatus');
+    notifyListeners();
+    return false;
   }
 
   Future<void> updateProfile(Map<String, dynamic> data) async {

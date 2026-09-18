@@ -123,7 +123,22 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
                               const SizedBox(width: 16),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Text(s.pasajeroNombre ?? 'Pasajero', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                if (s.pasajeroTelefono != null) Text(s.pasajeroTelefono!, style: const TextStyle(color: AppTheme.textMedium)),
+                                const SizedBox(height: 4),
+                                Row(children: [
+                                  const Icon(Icons.star_rounded, size: 16, color: AppTheme.secondary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    (s.pasajeroCalificacion ?? 0) > 0
+                                        ? s.pasajeroCalificacion!.toStringAsFixed(1)
+                                        : 'Sin calificacion',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  const Icon(Icons.route_rounded, size: 15, color: AppTheme.textMedium),
+                                  const SizedBox(width: 4),
+                                  Text('${s.pasajeroTotalViajes ?? 0} viajes',
+                                      style: const TextStyle(color: AppTheme.textMedium, fontSize: 13)),
+                                ]),
                               ])),
                             ],
                           ),

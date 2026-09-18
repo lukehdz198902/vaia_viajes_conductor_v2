@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/servicio_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
+import '../services/api_service.dart';
 import '../widgets/vaia_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -14,6 +16,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   RideProvider? _ride;
+  final _api = ApiService();
+  Map<String, dynamic>? _resumen;
+  Timer? _resumenTimer;
+
+  Future<void> _cargarResumen() async {
+    final auth = context.read<AuthProvider>();
+    if (!auth.isLoggedIn) return;
+    try {
+      final r = await _api.resumenDia(auth.userId);
+      if (!mounted || r.data == null) return;
+      setState(() => _resumen = r.data);
+    } catch (_) {}
+  }
+
+  String _fmtMinutos(dynamic v) {
+    final m = int.tryParse(v?.toString() ?? '') ?? 0;
+    if (m < 60) return '${m}m';
+    return '${m ~/ 60}h ${m % 60}m';
+  }
 
   @override
   void initState() {
@@ -26,12 +47,102 @@ class _HomeScreenState extends State<HomeScreen> {
       if (auth.isLoggedIn) {
         ride.startPolling(auth.userId);
         ride.iniciarPresencia(auth.userId);
+        _promptEmailVerification(auth);
+        _cargarResumen();
+        _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
       }
     });
   }
 
+  /// Solicita verificar el correo si aun no esta confirmado (con opcion de
+  /// corregirlo). Se pide cada vez que el conductor ingresa.
+  Future<void> _promptEmailVerification(AuthProvider auth) async {
+    final c = auth.conductor;
+    if (c == null || c.correoConfirmado == true) return;
+    if (!mounted) return;
+
+    final accion = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.mark_email_unread_outlined, color: VaiaColors.warning, size: 40),
+        title: const Text('Verifica tu correo'),
+        content: Text('Aun no has verificado ${c.correo}. Verificalo para mayor seguridad de tu cuenta.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, 'cambiar'), child: const Text('Cambiar correo')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 'luego'), child: const Text('Mas tarde')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'verificar'), child: const Text('Verificar')),
+        ],
+      ),
+    );
+    if (!mounted || accion == null || accion == 'luego') return;
+
+    if (accion == 'cambiar') {
+      final nuevo = await _pedirCorreo(c.correo);
+      if (nuevo == null || nuevo.isEmpty) return;
+      final ok = await auth.actualizarCorreo(nuevo);
+      if (!mounted) return;
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error ?? 'Correo invalido'), backgroundColor: VaiaColors.danger));
+        return;
+      }
+    }
+    await _enviarYValidarCorreo(auth);
+  }
+
+  Future<String?> _pedirCorreo(String actual) async {
+    final ctrl = TextEditingController(text: actual);
+    final r = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Correo electronico'),
+        content: TextField(controller: ctrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Correo')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return r;
+  }
+
+  Future<void> _enviarYValidarCorreo(AuthProvider auth) async {
+    final enviado = await auth.enviarCodigoCorreo();
+    if (!mounted) return;
+    if (!enviado) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo enviar el codigo al correo'), backgroundColor: VaiaColors.danger));
+      return;
+    }
+    final ctrl = TextEditingController();
+    final codigo = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Codigo enviado'),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          decoration: const InputDecoration(labelText: 'Codigo de 6 digitos'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Validar')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (codigo == null || codigo.isEmpty) return;
+    final valido = await auth.validarCodigoCorreo(codigo);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(valido ? 'Correo verificado' : (auth.error ?? 'Codigo invalido')),
+      backgroundColor: valido ? VaiaColors.success : VaiaColors.danger,
+    ));
+  }
+
   @override
   void dispose() {
+    _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
     super.dispose();
@@ -133,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ));
             }
           }),
+          _iconAction(context, Icons.folder_shared_outlined, () => Navigator.pushNamed(context, '/documents')),
           _iconAction(context, Icons.notifications_outlined, () => Navigator.pushNamed(context, '/notifications')),
           _iconAction(context, Icons.settings_outlined, () => Navigator.pushNamed(context, '/settings')),
         ],
@@ -315,9 +427,11 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _statTile(Icons.star_rounded, 'Calificacion', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0', VaiaColors.accent),
-                  _statTile(Icons.monetization_on_rounded, 'Ganancias', '\$0', VaiaColors.onlineGreen),
-                  _statTile(Icons.route_rounded, 'Viajes', (auth.conductor?.totalViajes ?? 0).toString(), VaiaColors.primary),
+                  _statTile(Icons.monetization_on_rounded, 'Ganancias hoy',
+                      '\$${(double.tryParse(_resumen?['gananciasdia']?.toString() ?? '0') ?? 0).toStringAsFixed(2)}', VaiaColors.onlineGreen),
+                  _statTile(Icons.route_rounded, 'Servicios hoy', (_resumen?['serviciosdia'] ?? 0).toString(), VaiaColors.primary),
+                  _statTile(Icons.timer_outlined, 'Conectado', _fmtMinutos(_resumen?['minutosconectado']), VaiaColors.accent),
+                  _statTile(Icons.star_rounded, 'Calificacion', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0', VaiaColors.warning),
                 ],
               ),
               const SizedBox(height: 16),
@@ -325,7 +439,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton.icon(
-                  onPressed: () => context.read<AuthProvider>().toggleOnline(),
+                  onPressed: () async {
+                    final auth = context.read<AuthProvider>();
+                    final messenger = ScaffoldMessenger.of(context);
+                    final ok = await auth.toggleOnline();
+                    if (!mounted) return;
+                    if (!ok) {
+                      messenger.showSnackBar(SnackBar(
+                        content: Text(auth.error ?? 'No se pudo cambiar el estatus'),
+                        backgroundColor: VaiaColors.danger,
+                      ));
+                    } else {
+                      _cargarResumen();
+                    }
+                  },
                   icon: Icon(
                     auth.isOnline ? Icons.power_settings_new_rounded : Icons.wifi_tethering_rounded,
                     color: Colors.white,

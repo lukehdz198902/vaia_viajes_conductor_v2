@@ -219,18 +219,15 @@ class VaiaLogo extends StatelessWidget {
         Container(
           width: size,
           height: size,
+          padding: EdgeInsets.all(size * 0.12),
           decoration: BoxDecoration(
-            gradient: VaiaColors.primaryGradient,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(size * 0.25),
             boxShadow: [
               BoxShadow(color: c.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
             ],
           ),
-          child: Icon(
-            Icons.local_taxi_rounded,
-            color: Colors.white,
-            size: size * 0.55,
-          ),
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
         ),
         if (showText) ...[
           const SizedBox(width: 10),

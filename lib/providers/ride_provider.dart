@@ -68,6 +68,9 @@ class RideProvider extends ChangeNotifier {
           _servicioOfrecido = Servicio.fromJson({
             'id': idServicio,
             'idpasajero': event.data['idPasajero'],
+            'pas_nombre': event.data['pasajeroNombre'] ?? event.data['pasajeronombre'],
+            'pasajerocalificacion': event.data['pasajeroCalificacion'],
+            'pasajerototalviajes': event.data['pasajeroTotalViajes'],
             'direccionorigen': event.data['direccionOrigen'] ?? event.data['direccionorigen'] ?? '',
             'latorigen': event.data['latOrigen'] ?? '',
             'lngorigen': event.data['lngOrigen'] ?? '',

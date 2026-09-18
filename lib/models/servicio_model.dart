@@ -23,6 +23,8 @@ class Servicio {
   final String? comentarios;
   final int? idCompania;
   final int? segundosParaTomar;
+  final double? pasajeroCalificacion;
+  final int? pasajeroTotalViajes;
 
   Servicio({
     required this.id,
@@ -49,6 +51,8 @@ class Servicio {
     this.comentarios,
     this.idCompania,
     this.segundosParaTomar,
+    this.pasajeroCalificacion,
+    this.pasajeroTotalViajes,
   });
 
   Map<String, dynamic> toMap() {
@@ -77,6 +81,8 @@ class Servicio {
       'comentarios': comentarios,
       'idcompania': idCompania,
       'segundosparatomar': segundosParaTomar,
+      'pasajerocalificacion': pasajeroCalificacion,
+      'pasajerototalviajes': pasajeroTotalViajes,
     };
   }
 
@@ -106,6 +112,8 @@ class Servicio {
       comentarios: json['comentarios']?.toString(),
       idCompania: _safeInt(json['idcompania']),
       segundosParaTomar: _safeInt(json['segundosparatomar']) ?? _safeInt(json['segundosParaTomar']),
+      pasajeroCalificacion: _safeDouble(json['pasajerocalificacion']) ?? _safeDouble(json['pasajeroCalificacion']),
+      pasajeroTotalViajes: _safeInt(json['pasajerototalviajes']) ?? _safeInt(json['pasajeroTotalViajes']),
     );
   }
 

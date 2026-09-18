@@ -25,6 +25,8 @@ import 'screens/notifications_screen.dart';
 import 'screens/report_incident_screen.dart';
 import 'screens/rating_screen.dart';
 import 'screens/support_chat_screen.dart';
+import 'screens/documents_screen.dart';
+import 'screens/vehicle_documents_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,6 +80,10 @@ class VaiaViajesApp extends StatelessWidget {
             page = const ProfileScreen();
           case '/vehicle':
             page = const VehicleScreen();
+          case '/documents':
+            page = const DocumentsScreen();
+          case '/vehicle_documents':
+            page = VehicleDocumentsScreen(idUnidad: (args['idunidad'] as num?)?.toInt() ?? 0);
           case '/history':
             page = const HistoryScreen();
           case '/trip_detail':

@@ -208,11 +208,70 @@ class ApiService {
         if (referencia != null) 'referencia': referencia,
       });
 
+  // ─── VERIFICACION DE TELEFONO / CORREO ───────────────────────
+
+  Future<ApiResponse> enviarCodigoVerificacion(String telefono, String codigopaistel) =>
+      post('${ApiConfig.conductorEndpoint}/EnviarCodigoVerificacion', {
+        'telefono': telefono, 'codigopaistel': codigopaistel,
+      });
+
+  Future<ApiResponse> validarCodigoVerificacion(String telefono, String codigopaistel, String codigo) =>
+      post('${ApiConfig.conductorEndpoint}/ValidarCodigoVerificacion', {
+        'telefono': telefono, 'codigopaistel': codigopaistel, 'codigo': codigo,
+      });
+
+  Future<ApiResponse> enviarCodigoCorreo(int idConductor, String correo) =>
+      post('${ApiConfig.conductorEndpoint}/EnviarCodigoCorreo', {
+        'idConductor': idConductor, 'correo': correo,
+      });
+
+  Future<ApiResponse> validarCodigoCorreo(String correo, String codigo) =>
+      post('${ApiConfig.conductorEndpoint}/ValidarCodigoCorreo', {
+        'correo': correo, 'codigo': codigo,
+      });
+
+  Future<ApiResponse> actualizarCorreo(int idConductor, String correo) =>
+      post('${ApiConfig.conductorEndpoint}/ActualizarCorreo', {
+        'idConductor': idConductor, 'correo': correo,
+      });
+
   /// Registra/actualiza el token de notificaciones push (FCM) del conductor.
   Future<ApiResponse> actualizarToken(int idConductor, String token) =>
       post('${ApiConfig.conductorEndpoint}/ActualizarToken', {
         'idConductor': idConductor, 'googlekey': token,
       });
+
+  /// Resumen del dia: ganancias, servicios realizados y minutos conectado.
+  Future<ApiResponse> resumenDia(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/ResumenDia?idConductor=$idConductor');
+
+  // ─── DOCUMENTOS ──────────────────────────────────────────────
+
+  Future<ApiResponse> listarTiposDocumento({String para = 'conductor'}) =>
+      get('${ApiConfig.conductorEndpoint}/ListarTiposDocumento?para=$para');
+
+  Future<ApiResponse> agregarDocumento(int idConductor, int idtipoarchivo, String nombre, String base64) =>
+      post('${ApiConfig.conductorEndpoint}/AgregarDocumento', {
+        'idConductor': idConductor, 'idtipoarchivo': idtipoarchivo,
+        'nombredocumento': nombre, 'contenidoBase64': base64,
+      });
+
+  Future<ApiResponse> eliminarDocumento(int idDocumento, int idConductor) =>
+      post('${ApiConfig.conductorEndpoint}/EliminarDocumento', {
+        'idDocumento': idDocumento, 'idConductor': idConductor,
+      });
+
+  Future<ApiResponse> listarDocumentos(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/ListarDocumentos?idConductor=$idConductor');
+
+  Future<ApiResponse> agregarDocumentoUnidad(int idConductor, int idunidad, int idtipoarchivounidad, String nombre, String base64) =>
+      post('${ApiConfig.conductorEndpoint}/AgregarDocumentoUnidad', {
+        'idConductor': idConductor, 'idunidad': idunidad, 'idtipoarchivounidad': idtipoarchivounidad,
+        'nombredocumento': nombre, 'contenidoBase64': base64,
+      });
+
+  Future<ApiResponse> listarDocumentosUnidad(int idConductor, int idunidad) =>
+      get('${ApiConfig.conductorEndpoint}/ListarDocumentosUnidad?idConductor=$idConductor&idunidad=$idunidad');
 
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
