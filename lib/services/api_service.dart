@@ -276,6 +276,14 @@ class ApiService {
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
 
+  /// Zonas con mayor demanda historica (origenes de servicios) para el mapa.
+  Future<ApiResponse> zonasDemanda({int dias = 30}) =>
+      get('${ApiConfig.conductorEndpoint}/ZonasDemanda?dias=$dias');
+
+  /// Zonas donde mas se conectan los pasajeros.
+  Future<ApiResponse> zonasConexion() =>
+      get('${ApiConfig.conductorEndpoint}/ZonasConexion');
+
   Future<ApiResponse> seleccionarUnidad(int idConductor, int idUnidad) =>
       post('${ApiConfig.conductorEndpoint}/SeleccionarUnidad', {
         'idConductor': idConductor, 'idUnidad': idUnidad,

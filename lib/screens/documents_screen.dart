@@ -100,7 +100,8 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                     child: const Row(children: [
                       Icon(Icons.info_outline_rounded, color: VaiaColors.primary, size: 20),
                       SizedBox(width: 10),
-                      Expanded(child: Text('Sube documentos claros y vigentes. Seran revisados por un administrador.',
+                      Expanded(child: Text(
+                          'Los documentos marcados como Obligatorio son indispensables para poder laborar. Los demas son opcionales y ayudan a que los pasajeros te evaluen mejor.',
                           style: TextStyle(fontSize: 13, color: VaiaColors.textSecondary))),
                     ]),
                   ),
@@ -108,8 +109,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   ..._tipos.map((t) {
                     final id = int.tryParse(t['id']?.toString() ?? '') ?? 0;
                     final nombre = t['tipoarchivo']?.toString() ?? '';
+                    final obligatorio = t['obligatorio'] == true || t['obligatorio'] == 1;
                     final doc = _docs[id];
-                    return _documentoTile(id, nombre, doc);
+                    return _documentoTile(id, nombre, doc, obligatorio);
                   }),
                 ],
               ),
@@ -117,7 +119,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
     );
   }
 
-  Widget _documentoTile(int id, String nombre, Map<String, dynamic>? doc) {
+  Widget _documentoTile(int id, String nombre, Map<String, dynamic>? doc, bool obligatorio) {
     final validado = doc?['validado'] == true || doc?['validado'] == 1;
     final correccion = doc?['encorreccion'] == true || doc?['encorreccion'] == 1;
     final enRevision = doc?['enrevision'] == true || doc?['enrevision'] == 1;
@@ -141,7 +143,30 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
               Icon(icono, color: color, size: 22),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(nombre, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Row(children: [
+                  Flexible(child: Text(nombre, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
+                  if (obligatorio) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: VaiaColors.danger.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text('Obligatorio', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: VaiaColors.danger)),
+                    ),
+                  ] else ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: VaiaColors.bgMuted,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text('Opcional', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: VaiaColors.textMuted)),
+                    ),
+                  ],
+                ]),
                 Text(estado, style: TextStyle(fontSize: 12, color: color)),
               ])),
               if (_subiendo == id)

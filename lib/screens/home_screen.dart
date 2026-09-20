@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/servicio_model.dart';
@@ -24,6 +25,69 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _api = ApiService();
   Map<String, dynamic>? _resumen;
   Timer? _resumenTimer;
+
+  // Mapa de zonas de demanda / conexion
+  GoogleMapController? _mapController;
+  final Set<Marker> _mapMarkers = {};
+  final Set<Circle> _mapCircles = {};
+  bool _ocultarPaneles = false;
+
+  /// Carga las zonas de mayor demanda (servicios historicos) y las zonas
+  /// donde mas se conectan los pasajeros.
+  Future<void> _cargarMapa() async {
+    try {
+      final rd = await _api.zonasDemanda(dias: 90);
+      final rc = await _api.zonasConexion();
+      final demanda = rd.list ?? [];
+      final conexion = rc.list ?? [];
+
+      int totalDe(dynamic e) => int.tryParse((e as Map)['total']?.toString() ?? '') ?? 0;
+      double? latDe(dynamic e) => double.tryParse((e as Map)['lat']?.toString() ?? '');
+      double? lngDe(dynamic e) => double.tryParse((e as Map)['lng']?.toString() ?? '');
+
+      final maxD = demanda.fold<int>(1, (m, e) => totalDe(e) > m ? totalDe(e) : m);
+      final circles = <Circle>{};
+      for (var i = 0; i < demanda.length; i++) {
+        final e = demanda[i];
+        final lat = latDe(e);
+        final lng = lngDe(e);
+        if (lat == null || lng == null) continue;
+        final ratio = totalDe(e) / maxD;
+        circles.add(Circle(
+          circleId: CircleId('dem_$i'),
+          center: LatLng(lat, lng),
+          radius: 250 + ratio * 900,
+          fillColor: VaiaColors.danger.withValues(alpha: 0.16 + ratio * 0.26),
+          strokeColor: VaiaColors.danger.withValues(alpha: 0.55),
+          strokeWidth: 2,
+        ));
+      }
+
+      final markers = <Marker>{};
+      for (var i = 0; i < conexion.length; i++) {
+        final e = conexion[i];
+        final lat = latDe(e);
+        final lng = lngDe(e);
+        if (lat == null || lng == null) continue;
+        markers.add(Marker(
+          markerId: MarkerId('con_$i'),
+          position: LatLng(lat, lng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          infoWindow: InfoWindow(title: 'Pasajeros conectados: ${totalDe(e)}'),
+        ));
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _mapCircles
+          ..clear()
+          ..addAll(circles);
+        _mapMarkers
+          ..clear()
+          ..addAll(markers);
+      });
+    } catch (_) {}
+  }
 
   Future<void> _cargarResumen() async {
     final auth = context.read<AuthProvider>();
@@ -58,6 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _promptEmailVerification(auth);
       if (!mounted) return;
       await _seleccionarUnidadPredeterminada();
+      _cargarMapa();
       _cargarResumen();
       _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
     });
@@ -241,74 +306,129 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildIdleView(BuildContext context, AuthProvider auth, RideProvider ride) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            VaiaColors.primaryGhost,
-            Theme.of(context).scaffoldBackgroundColor,
-          ],
+    return Stack(
+      children: [
+        // Mapa con las zonas de mayor demanda y de conexion de pasajeros
+        GoogleMap(
+          initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 12),
+          onMapCreated: (c) => _mapController = c,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          compassEnabled: false,
+          mapToolbarEnabled: false,
+          markers: _mapMarkers,
+          circles: _mapCircles,
         ),
+        // Boton para ocultar/mostrar las tarjetas y ver el mapa mas amplio
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Material(
+            color: VaiaColors.surface,
+            elevation: 4,
+            borderRadius: BorderRadius.circular(VaiaRadius.md),
+            child: InkWell(
+              onTap: () => setState(() => _ocultarPaneles = !_ocultarPaneles),
+              borderRadius: BorderRadius.circular(VaiaRadius.md),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_ocultarPaneles ? Icons.map_rounded : Icons.visibility_off_rounded, size: 17, color: VaiaColors.primary),
+                  const SizedBox(width: 6),
+                  Text(_ocultarPaneles ? 'Ver tarjetas' : 'Ver mapa',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.primary)),
+                ]),
+              ),
+            ),
+          ),
+        ),
+        if (!_ocultarPaneles) ...[
+          const Positioned(top: 8, left: 0, right: 0, child: OnboardingChecklist()),
+          Positioned(bottom: 14, left: 14, right: 14, child: _estadoCard(context, auth)),
+        ] else
+          Positioned(bottom: 14, left: 14, child: _leyendaMapa()),
+      ],
+    );
+  }
+
+  Widget _estadoCard(BuildContext context, AuthProvider auth) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: VaiaColors.surface,
+        borderRadius: BorderRadius.circular(VaiaRadius.lg),
+        boxShadow: VaiaShadows.elevated,
       ),
-      child: Column(
+      child: Row(
         children: [
-          const OnboardingChecklist(),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: (auth.isOnline ? VaiaColors.primary : VaiaColors.textMuted).withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(VaiaRadius.md),
+            ),
+            child: Icon(Icons.local_taxi_rounded, size: 28, color: auth.isOnline ? VaiaColors.primary : VaiaColors.textMuted),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: VaiaColors.surface,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: VaiaShadows.card,
-                  ),
-                  child: Icon(
-                    Icons.local_taxi_rounded,
-                    size: 56,
-                    color: auth.isOnline ? VaiaColors.primary : VaiaColors.textMuted,
-                  ),
+                Text(auth.isOnline ? 'Esperando solicitudes' : 'Estas desconectado',
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                const SizedBox(height: 3),
+                Text(
+                  auth.isOnline ? 'Mantente cerca de las zonas con mas demanda' : 'Conectate para empezar a recibir viajes',
+                  style: const TextStyle(color: VaiaColors.textSecondary, fontSize: 12.5),
                 ),
-          const SizedBox(height: 20),
-          Text(
-            auth.isOnline ? 'Esperando solicitudes' : 'Estas desconectado',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              auth.isOnline
-                  ? 'Mantente cerca, los viajes cercanos llegaran pronto'
-                  : 'Conectate para empezar a recibir viajes',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
-              textAlign: TextAlign.center,
+              ],
             ),
           ),
-          const SizedBox(height: 24),
           if (auth.isOnline)
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 16, height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: VaiaColors.primary),
-                ),
-                SizedBox(width: 10),
-                Text('Buscando viajes...', style: TextStyle(fontSize: 13, color: VaiaColors.textSecondary, fontWeight: FontWeight.w500)),
-              ],
-            ),
-              ],
-            ),
-          ),
+            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: VaiaColors.primary)),
         ],
       ),
     );
   }
+
+  Widget _leyendaMapa() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: VaiaColors.surface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        boxShadow: VaiaShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Zonas de demanda', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 6),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 12, height: 12,
+              decoration: BoxDecoration(
+                color: VaiaColors.danger.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+                border: Border.all(color: VaiaColors.danger),
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Text('Mas servicios', style: TextStyle(fontSize: 10.5, color: VaiaColors.textSecondary)),
+          ]),
+          const SizedBox(height: 4),
+          const Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.location_on, size: 13, color: Color(0xFF3B82F6)),
+            SizedBox(width: 6),
+            Text('Mas pasajeros conectados', style: TextStyle(fontSize: 10.5, color: VaiaColors.textSecondary)),
+          ]),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildActiveRideView(RideProvider ride) {
     final s = ride.activeRide;

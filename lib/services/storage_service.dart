@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -9,6 +10,7 @@ class StorageService {
   static const _userPhoneKey = 'conductor_phone';
   static const _userIdCompaniaKey = 'conductor_id_compania';
   static const _userStatusKey = 'conductor_status';
+  static const _userDataKey = 'conductor_user_data';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
@@ -24,6 +26,11 @@ class StorageService {
     await prefs.setString(_userPhoneKey, user['telefono'] ?? '');
     await prefs.setInt(_userIdCompaniaKey, user['idcompania'] ?? 0);
     await prefs.setString(_userStatusKey, user['conductorestatus'] ?? '');
+    // Guarda el objeto completo para conservar banderas como correoconfirmado,
+    // telefonoconfirmado, documentacionaprobada y nombreestatusdocs.
+    try {
+      await prefs.setString(_userDataKey, jsonEncode(user));
+    } catch (_) {}
     if (user['uuidsesion'] != null) {
       await setSessionToken(user['uuidsesion'].toString());
     }
@@ -31,13 +38,22 @@ class StorageService {
 
   Future<Map<String, dynamic>> getUserData() async {
     final prefs = await SharedPreferences.getInstance();
+    Map<String, dynamic> base = {};
+    final raw = prefs.getString(_userDataKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) base = Map<String, dynamic>.from(decoded);
+      } catch (_) {}
+    }
     return {
-      'id': prefs.getInt(_userIdKey) ?? 0,
-      'nombre': prefs.getString(_userNameKey) ?? '',
-      'correo': prefs.getString(_userEmailKey) ?? '',
-      'telefono': prefs.getString(_userPhoneKey) ?? '',
-      'idcompania': prefs.getInt(_userIdCompaniaKey) ?? 0,
-      'conductorestatus': prefs.getString(_userStatusKey) ?? '',
+      ...base,
+      'id': prefs.getInt(_userIdKey) ?? base['id'] ?? 0,
+      'nombre': prefs.getString(_userNameKey) ?? base['nombre'] ?? '',
+      'correo': prefs.getString(_userEmailKey) ?? base['correo'] ?? '',
+      'telefono': prefs.getString(_userPhoneKey) ?? base['telefono'] ?? '',
+      'idcompania': prefs.getInt(_userIdCompaniaKey) ?? base['idcompania'] ?? 0,
+      'conductorestatus': prefs.getString(_userStatusKey) ?? base['conductorestatus'] ?? '',
     };
   }
 

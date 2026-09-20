@@ -32,7 +32,23 @@ class AuthProvider extends ChangeNotifier {
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
       _registrarToken();
+      // Refresca el perfil para traer las banderas actualizadas (correo,
+      // telefono, documentacion) y no volver a pedir lo ya validado.
+      await refreshPerfil();
     }
+  }
+
+  /// Refresca el perfil desde el servidor y lo persiste localmente.
+  Future<void> refreshPerfil() async {
+    if (_conductor == null) return;
+    try {
+      final resp = await _api.obtenerPerfil(_conductor!.id);
+      if (resp.ok && resp.data != null) {
+        _conductor = Conductor.fromJson(resp.data!);
+        await _storage.saveUserData(_conductor!.toMap());
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   // ─── VERIFICACION DE TELEFONO / CORREO ───────────────────────
@@ -49,8 +65,12 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> validarCodigoVerificacion(String telefono, String codigopaistel, String codigo) async {
     try {
       final resp = await _api.validarCodigoVerificacion(telefono, codigopaistel, codigo);
-      if (!resp.ok) _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Codigo invalido');
-      return resp.ok;
+      if (!resp.ok) {
+        _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Codigo invalido');
+        return false;
+      }
+      await refreshPerfil();
+      return true;
     } catch (_) {
       return false;
     }
@@ -72,6 +92,7 @@ class AuthProvider extends ChangeNotifier {
       final resp = await _api.validarCodigoCorreo(_conductor!.correo, codigo);
       if (resp.ok) {
         _conductor = Conductor.fromJson({..._conductor!.toMap(), 'correoconfirmado': true});
+        await _storage.saveUserData(_conductor!.toMap());
         notifyListeners();
       } else {
         _error = resp.mensaje.isNotEmpty ? resp.mensaje : 'Codigo invalido';
@@ -88,6 +109,7 @@ class AuthProvider extends ChangeNotifier {
       final resp = await _api.actualizarCorreo(_conductor!.id, correo);
       if (resp.ok) {
         _conductor = Conductor.fromJson({..._conductor!.toMap(), 'correo': correo, 'correoconfirmado': false});
+        await _storage.saveUserData(_conductor!.toMap());
         notifyListeners();
       } else {
         _error = resp.mensaje.isNotEmpty ? resp.mensaje : 'No se pudo actualizar el correo';
