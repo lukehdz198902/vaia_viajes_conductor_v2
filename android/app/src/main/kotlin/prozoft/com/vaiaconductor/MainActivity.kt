@@ -34,7 +34,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "show" -> {
                     BubbleState.conectado = call.argument<Boolean>("conectado") ?: false
-                    BubbleState.ultima = call.argument<String>("ultima") ?: "--:--:--"
+                    BubbleState.fecha = call.argument<String>("fecha") ?: "--/-- --:--:--"
                     if (canDrawOverlays()) {
                         try {
                             startService(Intent(this, OverlayBubbleService::class.java))
@@ -44,7 +44,7 @@ class MainActivity : FlutterActivity() {
                 }
                 "update" -> {
                     BubbleState.conectado = call.argument<Boolean>("conectado") ?: false
-                    BubbleState.ultima = call.argument<String>("ultima") ?: "--:--:--"
+                    BubbleState.fecha = call.argument<String>("fecha") ?: "--/-- --:--:--"
                     result.success(true)
                 }
                 "hide" -> {
@@ -52,6 +52,14 @@ class MainActivity : FlutterActivity() {
                         stopService(Intent(this, OverlayBubbleService::class.java))
                     } catch (_: Exception) {}
                     result.success(true)
+                }
+                "moveToBack" -> {
+                    try {
+                        moveTaskToBack(true)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
                 }
                 else -> result.notImplemented()
             }

@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -12,20 +13,23 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Estado compartido entre Flutter (MainActivity) y la burbuja. */
 object BubbleState {
     @Volatile var conectado: Boolean = false
-    @Volatile var ultima: String = "--:--:--"
+    @Volatile var fecha: String = "--/-- --:--:--"
 }
 
 /**
- * Burbuja flotante (overlay) que se muestra al minimizar la app del conductor.
- * Muestra un punto verde si esta conectado, gris si no, y la hora de la
- * ultima ubicacion enviada al servidor.
+ * Burbuja flotante circular con el logotipo de Vaia. Se muestra solo al
+ * minimizar/cerrar la app. Incluye un punto verde (conectado) o gris
+ * (desconectado) y la fecha/hora de la ultima ubicacion enviada al servidor.
  */
 class OverlayBubbleService : Service() {
 
@@ -53,6 +57,8 @@ class OverlayBubbleService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
     private fun crearBurbuja() {
         if (bubbleView != null) return
 
@@ -64,46 +70,79 @@ class OverlayBubbleService : Service() {
             PixelFormat.TRANSLUCENT
         )
         lp.gravity = Gravity.TOP or Gravity.START
-        lp.x = 40
-        lp.y = 260
+        lp.x = dp(20)
+        lp.y = dp(220)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(26, 18, 26, 18)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+
+        val circle = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(64), dp(64))
+        }
+
+        val logo = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setImageResource(R.drawable.vaia_bubble_logo)
+            scaleType = ImageView.ScaleType.CENTER_CROP
             background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                setColor(Color.parseColor("#E60F172A"))
-                cornerRadius = 70f
-                setStroke(2, Color.parseColor("#33FFFFFF"))
+                shape = GradientDrawable.OVAL
+                setColor(Color.WHITE)
+                setStroke(dp(3), Color.parseColor("#F59E0B"))
             }
-            elevation = 14f
+            clipToOutline = true
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    outline.setOval(0, 0, view.width, view.height)
+                }
+            }
+            elevation = dp(8).toFloat()
         }
 
         dotView = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(30, 30).apply { gravity = Gravity.CENTER_HORIZONTAL }
+            val size = dp(18)
+            layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.BOTTOM or Gravity.END
+            }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(Color.parseColor("#94A3B8"))
+                setStroke(dp(2), Color.WHITE)
             }
         }
 
+        circle.addView(logo)
+        circle.addView(dotView)
+
         timeView = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(6) }
             setTextColor(Color.WHITE)
-            textSize = 11f
+            textSize = 10f
             gravity = Gravity.CENTER
-            text = "--:--:--"
-            setPadding(0, 8, 0, 0)
+            text = "--/-- --:--:--"
+            setPadding(dp(8), dp(3), dp(8), dp(3))
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(20).toFloat()
+                setColor(Color.parseColor("#E60F172A"))
+            }
         }
 
-        root.addView(dotView)
+        root.addView(circle)
         root.addView(timeView)
 
-        // Arrastrar la burbuja
         var iniX = 0
         var iniY = 0
         var toqueX = 0f
         var toqueY = 0f
+        var arrastro = false
         root.setOnTouchListener { _, ev ->
             when (ev.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -111,25 +150,24 @@ class OverlayBubbleService : Service() {
                     iniY = lp.y
                     toqueX = ev.rawX
                     toqueY = ev.rawY
+                    arrastro = false
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    lp.x = iniX + (ev.rawX - toqueX).toInt()
-                    lp.y = iniY + (ev.rawY - toqueY).toInt()
+                    val dx = (ev.rawX - toqueX).toInt()
+                    val dy = (ev.rawY - toqueY).toInt()
+                    if (Math.abs(dx) > dp(4) || Math.abs(dy) > dp(4)) arrastro = true
+                    lp.x = iniX + dx
+                    lp.y = iniY + dy
                     try { windowManager.updateViewLayout(root, lp) } catch (_: Exception) {}
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!arrastro) abrirApp()
                     true
                 }
                 else -> false
             }
-        }
-
-        // Tocar para abrir la app
-        root.setOnClickListener {
-            try {
-                val i = packageManager.getLaunchIntentForPackage(packageName)
-                i?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                if (i != null) startActivity(i)
-            } catch (_: Exception) {}
         }
 
         bubbleView = root
@@ -140,10 +178,18 @@ class OverlayBubbleService : Service() {
         }
     }
 
+    private fun abrirApp() {
+        try {
+            val i = packageManager.getLaunchIntentForPackage(packageName)
+            i?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            if (i != null) startActivity(i)
+        } catch (_: Exception) {}
+    }
+
     private fun actualizar() {
         val color = if (BubbleState.conectado) "#10B981" else "#94A3B8"
         (dotView?.background as? GradientDrawable)?.setColor(Color.parseColor(color))
-        timeView?.text = BubbleState.ultima
+        timeView?.text = BubbleState.fecha
     }
 
     override fun onDestroy() {

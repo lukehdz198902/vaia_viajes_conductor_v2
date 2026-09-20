@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/servicio_model.dart';
+import '../models/unidad_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
+import '../services/bubble_overlay.dart';
 import '../widgets/vaia_widgets.dart';
+import '../widgets/email_verification_sheet.dart';
+import '../widgets/onboarding_checklist.dart';
+import '../providers/profile_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,7 +19,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RideProvider? _ride;
   final _api = ApiService();
   Map<String, dynamic>? _resumen;
@@ -39,19 +44,56 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final auth = context.read<AuthProvider>();
       final ride = context.read<RideProvider>();
       _ride = ride;
-      if (auth.isLoggedIn) {
-        ride.startPolling(auth.userId);
-        ride.iniciarPresencia(auth.userId);
-        _promptEmailVerification(auth);
-        _cargarResumen();
-        _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
-      }
+      if (!auth.isLoggedIn) return;
+      ride.startPolling(auth.userId);
+      ride.iniciarPresencia(auth.userId);
+      await context.read<ProfileProvider>().loadUnidades(auth.userId);
+      if (!mounted) return;
+      await _promptEmailVerification(auth);
+      if (!mounted) return;
+      await _seleccionarUnidadPredeterminada();
+      _cargarResumen();
+      _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
     });
+  }
+
+  /// Muestra la burbuja flotante al minimizar/cerrar la app y la oculta al volver.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final ride = _ride;
+    if (ride == null) return;
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      ride.mostrarBurbuja();
+    } else if (state == AppLifecycleState.resumed) {
+      ride.ocultarBurbuja();
+    }
+  }
+
+  /// Si el conductor tiene varias unidades aprobadas y ninguna seleccionada,
+  /// se le pide elegir con cual va a laborar.
+  Future<void> _seleccionarUnidadPredeterminada() async {
+    final auth = context.read<AuthProvider>();
+    final profile = context.read<ProfileProvider>();
+    final aprobadas = profile.unidades.where((u) => u.aprobada == true).toList();
+    if (aprobadas.isEmpty || aprobadas.any((u) => u.enUso == true)) return;
+    if (!mounted) return;
+
+    final elegida = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (_) => _UnidadPickerSheet(unidades: aprobadas),
+    );
+    if (elegida == null || !mounted) return;
+    await profile.selectUnidad(auth.userId, elegida);
   }
 
   /// Solicita verificar el correo si aun no esta confirmado (con opcion de
@@ -61,87 +103,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (c == null || c.correoConfirmado == true) return;
     if (!mounted) return;
 
-    final accion = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.mark_email_unread_outlined, color: VaiaColors.warning, size: 40),
-        title: const Text('Verifica tu correo'),
-        content: Text('Aun no has verificado ${c.correo}. Verificalo para mayor seguridad de tu cuenta.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, 'cambiar'), child: const Text('Cambiar correo')),
-          TextButton(onPressed: () => Navigator.pop(ctx, 'luego'), child: const Text('Mas tarde')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, 'verificar'), child: const Text('Verificar')),
-        ],
-      ),
-    );
-    if (!mounted || accion == null || accion == 'luego') return;
-
-    if (accion == 'cambiar') {
-      final nuevo = await _pedirCorreo(c.correo);
-      if (nuevo == null || nuevo.isEmpty) return;
-      final ok = await auth.actualizarCorreo(nuevo);
-      if (!mounted) return;
-      if (!ok) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error ?? 'Correo invalido'), backgroundColor: VaiaColors.danger));
-        return;
-      }
-    }
-    await _enviarYValidarCorreo(auth);
-  }
-
-  Future<String?> _pedirCorreo(String actual) async {
-    final ctrl = TextEditingController(text: actual);
-    final r = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Correo electronico'),
-        content: TextField(controller: ctrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Correo')),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Guardar')),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    return r;
-  }
-
-  Future<void> _enviarYValidarCorreo(AuthProvider auth) async {
-    final enviado = await auth.enviarCodigoCorreo();
-    if (!mounted) return;
-    if (!enviado) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo enviar el codigo al correo'), backgroundColor: VaiaColors.danger));
-      return;
-    }
-    final ctrl = TextEditingController();
-    final codigo = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Codigo enviado'),
-        content: TextField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          decoration: const InputDecoration(labelText: 'Codigo de 6 digitos'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Validar')),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    if (codigo == null || codigo.isEmpty) return;
-    final valido = await auth.validarCodigoCorreo(codigo);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(valido ? 'Correo verificado' : (auth.error ?? 'Codigo invalido')),
-      backgroundColor: valido ? VaiaColors.success : VaiaColors.danger,
-    ));
+    await EmailVerificationSheet.mostrar(context);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -246,6 +213,10 @@ class _HomeScreenState extends State<HomeScreen> {
           }),
           _iconAction(context, Icons.folder_shared_outlined, () => Navigator.pushNamed(context, '/documents')),
           _iconAction(context, Icons.notifications_outlined, () => Navigator.pushNamed(context, '/notifications')),
+          _iconAction(context, Icons.picture_in_picture_alt_rounded, () async {
+            await context.read<RideProvider>().mostrarBurbuja();
+            await BubbleOverlay.minimizar();
+          }),
           _iconAction(context, Icons.settings_outlined, () => Navigator.pushNamed(context, '/settings')),
         ],
       ),
@@ -283,21 +254,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: VaiaColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: VaiaShadows.card,
-            ),
-            child: Icon(
-              Icons.local_taxi_rounded,
-              size: 56,
-              color: auth.isOnline ? VaiaColors.primary : VaiaColors.textMuted,
-            ),
-          ),
+          const OnboardingChecklist(),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: VaiaColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: VaiaShadows.card,
+                  ),
+                  child: Icon(
+                    Icons.local_taxi_rounded,
+                    size: 56,
+                    color: auth.isOnline ? VaiaColors.primary : VaiaColors.textMuted,
+                  ),
+                ),
           const SizedBox(height: 20),
           Text(
             auth.isOnline ? 'Esperando solicitudes' : 'Estas desconectado',
@@ -327,6 +302,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text('Buscando viajes...', style: TextStyle(fontSize: 13, color: VaiaColors.textSecondary, fontWeight: FontWeight.w500)),
               ],
             ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -636,6 +614,81 @@ class ServiceRequestDialog extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: primary ? Colors.white : VaiaColors.textPrimary,
         ),
+      ),
+    );
+  }
+}
+
+
+/// Hoja para que el conductor elija con cual unidad aprobada va a laborar.
+class _UnidadPickerSheet extends StatelessWidget {
+  final List<Unidad> unidades;
+  const _UnidadPickerSheet({required this.unidades});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: VaiaColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(child: Container(width: 44, height: 5, decoration: BoxDecoration(color: VaiaColors.border, borderRadius: BorderRadius.circular(3)))),
+              const SizedBox(height: 18),
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(gradient: VaiaColors.primaryGradient, borderRadius: BorderRadius.circular(VaiaRadius.md)),
+                  child: const Icon(Icons.directions_car_filled_rounded, color: Colors.white, size: 24),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Elige tu unidad', style: Theme.of(context).textTheme.headlineSmall),
+                  const SizedBox(height: 2),
+                  Text('Selecciona con cual vas a laborar', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: VaiaColors.textSecondary)),
+                ])),
+              ]),
+              const SizedBox(height: 18),
+              ...unidades.map((u) => _card(context, u)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card(BuildContext context, Unidad u) {
+    final detalle = [u.anio?.toString(), u.color].where((e) => e != null && e.isNotEmpty).join(' - ');
+    return InkWell(
+      onTap: () => Navigator.pop(context, u.id),
+      borderRadius: BorderRadius.circular(VaiaRadius.md),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: VaiaColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(VaiaRadius.md),
+          border: Border.all(color: VaiaColors.border),
+        ),
+        child: Row(children: [
+          const Icon(Icons.directions_car_filled_rounded, color: VaiaColors.primary, size: 26),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(u.displayName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+            if (detalle.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(detalle, style: const TextStyle(color: VaiaColors.textSecondary, fontSize: 12)),
+            ],
+          ])),
+          const Icon(Icons.chevron_right_rounded, color: VaiaColors.textMuted),
+        ]),
       ),
     );
   }

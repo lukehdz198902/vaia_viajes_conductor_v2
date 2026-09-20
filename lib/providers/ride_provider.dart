@@ -56,7 +56,7 @@ class RideProvider extends ChangeNotifier {
   double? get costoEnCurso => _costoEnCurso;
   DateTime? get ultimaUbicacion => _ultimaUbicacion;
 
-  // ─── SIGNALR ─────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ SIGNALR Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   void _onRealtimeEvent(RealtimeEvent event) {
     switch (event.tipo) {
@@ -108,7 +108,7 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  // ─── POLLING (RESPALDO) ──────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ POLLING (RESPALDO) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   void startPolling(int conductorId) {
     _pollTimer?.cancel();
@@ -144,7 +144,7 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  // ─── PRESENCIA Y GPS ─────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PRESENCIA Y GPS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
   //
   // El conductor reporta su ubicacion SIEMPRE que esta conectado
   // (disponible o en viaje) y envia un latido para que el sistema
@@ -171,18 +171,30 @@ class RideProvider extends ChangeNotifier {
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
     );
-    _prepararBurbuja();
+    _asegurarPermisoBurbuja();
   }
 
-  /// Verifica el permiso de overlay y muestra la burbuja flotante.
-  Future<void> _prepararBurbuja() async {
+  /// Solicita el permiso de overlay. La burbuja NO se muestra al conectar:
+  /// solo aparece cuando el conductor minimiza o cierra la app.
+  Future<void> _asegurarPermisoBurbuja() async {
     try {
       final ok = await BubbleOverlay.tienePermiso();
-      if (!ok) {
-        await BubbleOverlay.solicitarPermiso();
-        return;
-      }
-      await BubbleOverlay.mostrar(conectado: _conectadoWs, ultima: _horaActual());
+      if (!ok) await BubbleOverlay.solicitarPermiso();
+    } catch (_) {}
+  }
+
+  /// Muestra la burbuja flotante (al minimizar/cerrar la app).
+  Future<void> mostrarBurbuja() async {
+    if (_idConductorPresencia <= 0) return;
+    try {
+      await BubbleOverlay.mostrar(conectado: _conectadoWs, fecha: _fechaActual());
+    } catch (_) {}
+  }
+
+  /// Oculta la burbuja (al volver a la app).
+  Future<void> ocultarBurbuja() async {
+    try {
+      await BubbleOverlay.ocultar();
     } catch (_) {}
   }
 
@@ -229,7 +241,7 @@ class RideProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  // ─── NOTIFICACION DE ESTADO (servicio en primer plano) ───────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ NOTIFICACION DE ESTADO (servicio en primer plano) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   String _textoNotificacion() {
     final estado = _conectadoWs ? '\u{1F7E2} Conectado' : '\u{26AA} Sin conexion';
@@ -242,8 +254,14 @@ class RideProvider extends ChangeNotifier {
   String _hora(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
 
-  String _horaActual() =>
-      _ultimaUbicacion != null ? _hora(_ultimaUbicacion!) : '--:--:--';
+
+  String _fechaActual() {
+    final d = _ultimaUbicacion;
+    if (d == null) return '--/-- --:--:--';
+    final dd = d.day.toString().padLeft(2, '0');
+    final mm = d.month.toString().padLeft(2, '0');
+    return '$dd/$mm ${_hora(d)}';
+  }
 
   void _actualizarNotificacion() {
     if (_presenceTimer == null) return;
@@ -251,11 +269,11 @@ class RideProvider extends ChangeNotifier {
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
     );
-    // Actualiza la burbuja flotante (si el permiso esta concedido)
-    BubbleOverlay.mostrar(conectado: _conectadoWs, ultima: _horaActual());
+    // Actualiza la burbuja flotante (solo si ya esta visible)
+    BubbleOverlay.actualizar(conectado: _conectadoWs, fecha: _fechaActual());
   }
 
-  // ─── TAXIMETRO ───────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ TAXIMETRO Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   void iniciarTaximetro() {
     _taxiActivo = true;
@@ -316,7 +334,7 @@ class RideProvider extends ChangeNotifier {
     _reiniciarTimerPresencia();
   }
 
-  // ─── ACCIONES DEL SERVICIO ───────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ACCIONES DEL SERVICIO Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Future<bool> acceptRide(int servicioId, int conductorId) async {
     _loading = true; notifyListeners();
@@ -420,7 +438,7 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  // ─── PARADAS ─────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PARADAS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Future<void> listarParadas(int idServicio) async {
     try {
@@ -451,7 +469,7 @@ class RideProvider extends ChangeNotifier {
     }
   }
 
-  // ─── HISTORIAL ───────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ HISTORIAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Future<void> loadHistory(int conductorId) async {
     _loading = true; notifyListeners();
