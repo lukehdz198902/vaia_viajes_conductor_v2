@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -31,6 +32,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final Set<Marker> _mapMarkers = {};
   final Set<Circle> _mapCircles = {};
   bool _ocultarPaneles = false;
+  Position? _miPosicion;
+  StreamSubscription<Position>? _posSub;
+  bool _siguiendo = true;
+
+  /// Pide permiso de ubicacion, centra el mapa en el conductor y sigue su
+  /// movimiento con un stream de posiciones.
+  Future<void> _iniciarSeguimiento() async {
+    final ride = context.read<RideProvider>();
+    final ok = await ride.asegurarPermisoUbicacion();
+    if (!ok || !mounted) return;
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (mounted) {
+        setState(() {
+          _miPosicion = pos;
+          _actualizarMarcadorConductor();
+        });
+        _centrarEnConductor();
+      }
+    } catch (_) {}
+
+    _posSub?.cancel();
+    _posSub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 8),
+    ).listen((pos) {
+      if (!mounted) return;
+      setState(() {
+        _miPosicion = pos;
+        _actualizarMarcadorConductor();
+      });
+      if (_siguiendo) _centrarEnConductor();
+    });
+  }
+
+  void _centrarEnConductor() {
+    final p = _miPosicion;
+    if (p == null) return;
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(p.latitude, p.longitude), 16));
+  }
+
+  void _actualizarMarcadorConductor() {
+    _mapMarkers.removeWhere((m) => m.markerId.value == 'mi_ubicacion');
+    final p = _miPosicion;
+    if (p == null) return;
+    _mapMarkers.add(Marker(
+      markerId: const MarkerId('mi_ubicacion'),
+      position: LatLng(p.latitude, p.longitude),
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+      infoWindow: const InfoWindow(title: 'Mi ubicacion'),
+      zIndex: 5,
+    ));
+  }
 
   /// Carga las zonas de mayor demanda (servicios historicos) y las zonas
   /// donde mas se conectan los pasajeros.
@@ -123,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       await _seleccionarUnidadPredeterminada();
       _cargarMapa();
+      _iniciarSeguimiento();
       _cargarResumen();
       _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
     });
@@ -174,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _posSub?.cancel();
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -311,8 +368,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         // Mapa con las zonas de mayor demanda y de conexion de pasajeros
         GoogleMap(
           initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 12),
-          onMapCreated: (c) => _mapController = c,
-          myLocationEnabled: true,
+          onMapCreated: (c) {
+            _mapController = c;
+            _centrarEnConductor();
+          },
+          myLocationEnabled: false,
           myLocationButtonEnabled: false,
           zoomControlsEnabled: false,
           compassEnabled: false,
@@ -320,6 +380,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           markers: _mapMarkers,
           circles: _mapCircles,
         ),
+        // Estado de conexion (socket) y ultima ubicacion enviada al servidor
+        Positioned(top: 10, left: 10, child: _chipEstado(ride)),
         // Boton para ocultar/mostrar las tarjetas y ver el mapa mas amplio
         Positioned(
           top: 10,
@@ -343,12 +405,58 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         ),
+        // Boton para centrar y seguir al conductor en el mapa
+        Positioned(
+          right: 14,
+          bottom: _ocultarPaneles ? 70 : 122,
+          child: FloatingActionButton.small(
+            heroTag: 'centrar_mapa',
+            backgroundColor: VaiaColors.surface,
+            foregroundColor: _siguiendo ? VaiaColors.primary : VaiaColors.textSecondary,
+            onPressed: () {
+              setState(() => _siguiendo = true);
+              _centrarEnConductor();
+            },
+            child: Icon(_siguiendo ? Icons.my_location_rounded : Icons.location_searching_rounded),
+          ),
+        ),
         if (!_ocultarPaneles) ...[
           const Positioned(top: 8, left: 0, right: 0, child: OnboardingChecklist()),
           Positioned(bottom: 14, left: 14, right: 14, child: _estadoCard(context, auth)),
         ] else
           Positioned(bottom: 14, left: 14, child: _leyendaMapa()),
       ],
+    );
+  }
+
+  Widget _chipEstado(RideProvider ride) {
+    final conectado = ride.conectadoWs;
+    final color = conectado ? VaiaColors.onlineGreen : VaiaColors.warning;
+    final ult = ride.ultimaUbicacion;
+    final hora = ult != null
+        ? '${ult.hour.toString().padLeft(2, '0')}:${ult.minute.toString().padLeft(2, '0')}:${ult.second.toString().padLeft(2, '0')}'
+        : '--:--:--';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: VaiaColors.surface.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        boxShadow: VaiaShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+            Text(conectado ? 'En vivo' : 'Sin conexion',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+          ]),
+          const SizedBox(height: 3),
+          Text('Ultima ubicacion: $hora', style: const TextStyle(fontSize: 10.5, color: VaiaColors.textSecondary)),
+        ],
+      ),
     );
   }
 

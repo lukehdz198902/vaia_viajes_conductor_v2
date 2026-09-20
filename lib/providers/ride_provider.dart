@@ -42,8 +42,26 @@ class RideProvider extends ChangeNotifier {
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
   bool _conectadoWs = false;
+  bool _permisoUbicacionOk = false;
   StreamSubscription? _subEventos;
   StreamSubscription? _subConexion;
+
+  /// Asegura el permiso de ubicacion en tiempo de ejecucion (Android/iOS).
+  /// Sin este permiso Geolocator falla y no se reportaba ninguna ubicacion.
+  Future<bool> asegurarPermisoUbicacion() async {
+    if (_permisoUbicacionOk) return true;
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return false;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      _permisoUbicacionOk = perm == LocationPermission.always || perm == LocationPermission.whileInUse;
+      return _permisoUbicacionOk;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Servicio? get activeRide => _activeRide;
   Servicio? get servicioOfrecido => _servicioOfrecido;
@@ -159,7 +177,8 @@ class RideProvider extends ChangeNotifier {
     _idConductorPresencia = conductorId;
     _latidoTimer?.cancel();
 
-    _reportarPresencia();
+    // Solicita el permiso de ubicacion y comienza a reportar de inmediato.
+    asegurarPermisoUbicacion().then((_) => _reportarPresencia());
     _signalr.latido();
 
     _reiniciarTimerPresencia();
@@ -222,6 +241,7 @@ class RideProvider extends ChangeNotifier {
   Future<void> _reportarPresencia() async {
     if (_idConductorPresencia <= 0) return;
     try {
+      if (!await asegurarPermisoUbicacion()) return;
       final enViaje = _idServicioGps > 0;
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: LocationSettings(
