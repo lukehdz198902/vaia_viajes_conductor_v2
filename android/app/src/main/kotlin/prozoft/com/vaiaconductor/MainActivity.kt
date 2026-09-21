@@ -35,6 +35,7 @@ class MainActivity : FlutterActivity() {
                 "show" -> {
                     BubbleState.conectado = call.argument<Boolean>("conectado") ?: false
                     BubbleState.fecha = call.argument<String>("fecha") ?: "--/-- --:--:--"
+                    call.argument<String>("dirDatos")?.let { if (it.isNotEmpty()) BubbleState.dirDatos = it }
                     if (canDrawOverlays()) {
                         try {
                             startService(Intent(this, OverlayBubbleService::class.java))
@@ -45,6 +46,7 @@ class MainActivity : FlutterActivity() {
                 "update" -> {
                     BubbleState.conectado = call.argument<Boolean>("conectado") ?: false
                     BubbleState.fecha = call.argument<String>("fecha") ?: "--/-- --:--:--"
+                    call.argument<String>("dirDatos")?.let { if (it.isNotEmpty()) BubbleState.dirDatos = it }
                     result.success(true)
                 }
                 "hide" -> {

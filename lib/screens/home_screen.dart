@@ -337,13 +337,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ));
             }
           }),
-          _iconAction(context, Icons.folder_shared_outlined, () => Navigator.pushNamed(context, '/documents')),
           _iconAction(context, Icons.notifications_outlined, () => Navigator.pushNamed(context, '/notifications')),
           _iconAction(context, Icons.picture_in_picture_alt_rounded, () async {
             await context.read<RideProvider>().mostrarBurbuja();
             await BubbleOverlay.minimizar();
           }),
-          _iconAction(context, Icons.settings_outlined, () => Navigator.pushNamed(context, '/settings')),
         ],
       ),
     );
@@ -637,11 +635,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _statTile(Icons.monetization_on_rounded, 'Ganancias hoy',
-                      '\$${(double.tryParse(_resumen?['gananciasdia']?.toString() ?? '0') ?? 0).toStringAsFixed(2)}', VaiaColors.onlineGreen),
-                  _statTile(Icons.route_rounded, 'Servicios hoy', (_resumen?['serviciosdia'] ?? 0).toString(), VaiaColors.primary),
+                  _statTile(Icons.monetization_on_rounded, 'Ganancias',
+                      '\$${(double.tryParse(_resumen?['gananciasdia']?.toString() ?? '0') ?? 0).toStringAsFixed(0)}', VaiaColors.onlineGreen),
+                  _statTile(Icons.route_rounded, 'Servicios', (_resumen?['serviciosdia'] ?? 0).toString(), VaiaColors.primary),
                   _statTile(Icons.timer_outlined, 'Conectado', _fmtMinutos(_resumen?['minutosconectado']), VaiaColors.accent),
-                  _statTile(Icons.star_rounded, 'Calificacion', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0', VaiaColors.warning),
+                  _statTile(Icons.star_rounded, 'Rating', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0', VaiaColors.warning),
                 ],
               ),
               const SizedBox(height: 16),
@@ -688,19 +686,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _statTile(IconData icon, String label, String value, Color color) {
     return Expanded(
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 4),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
         decoration: BoxDecoration(
           color: Theme.of(context).scaffoldBackgroundColor,
           borderRadius: BorderRadius.circular(VaiaRadius.md),
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(height: 4),
-            Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: -0.2)),
-            const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 10, color: VaiaColors.textMuted, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  maxLines: 1,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+            ),
+            const SizedBox(height: 1),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(label,
+                  maxLines: 1,
+                  style: const TextStyle(fontSize: 9.5, color: VaiaColors.textMuted, fontWeight: FontWeight.w600, letterSpacing: 0.1)),
+            ),
           ],
         ),
       ),

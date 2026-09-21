@@ -1,9 +1,26 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'logger.dart';
+
+/// Archivo donde el servicio escribe el estado de la ultima ubicacion. La
+/// burbuja nativa lo lee cada segundo para mostrar la fecha/hora aunque la
+/// app este en segundo plano (cuando el isolate de UI esta suspendido).
+const String kArchivoEstadoUbicacion = 'vaia_estado_ubicacion.txt';
+
+Future<void> escribirEstadoUbicacion(String dir, bool conectado, DateTime? fecha) async {
+  if (dir.isEmpty) return;
+  try {
+    final hh = fecha == null
+        ? '--/-- --:--:--'
+        : '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')} '
+          '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}:${fecha.second.toString().padLeft(2, '0')}';
+    await File('$dir/$kArchivoEstadoUbicacion').writeAsString('${conectado ? '1' : '0'}|$hh', flush: true);
+  } catch (_) {}
+}
 
 /// Punto de entrada del servicio en primer plano (se ejecuta en su propio
 /// isolate, por lo que sigue vivo aunque la app este en segundo plano).
@@ -62,6 +79,9 @@ class _ConductorTaskHandler extends TaskHandler {
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
         final ahora = DateTime.now();
         await FlutterForegroundTask.saveData(key: 'ultimaUbicacion', value: ahora.toIso8601String());
+        // Refleja la hora en la burbuja nativa aunque la app este minimizada.
+        final dir = await FlutterForegroundTask.getData<String>(key: 'dirDatos') ?? '';
+        await escribirEstadoUbicacion(dir, true, ahora);
         final hh = '${ahora.hour.toString().padLeft(2, '0')}:'
             '${ahora.minute.toString().padLeft(2, '0')}:'
             '${ahora.second.toString().padLeft(2, '0')}';
@@ -117,10 +137,14 @@ class ForegroundServiceManager {
     required String texto,
     int intervaloSegundos = 15,
     int idConductor = 0,
+    String dirDatos = '',
   }) async {
     try {
       if (idConductor > 0) {
         await FlutterForegroundTask.saveData(key: 'idConductor', value: idConductor);
+      }
+      if (dirDatos.isNotEmpty) {
+        await FlutterForegroundTask.saveData(key: 'dirDatos', value: dirDatos);
       }
       await _init(intervaloSegundos);
       if (await FlutterForegroundTask.isRunningService) {

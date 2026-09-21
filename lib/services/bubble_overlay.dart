@@ -9,6 +9,9 @@ import 'logger.dart';
 class BubbleOverlay {
   static const _channel = MethodChannel('vaia/bubble');
 
+  /// Directorio donde el servicio escribe el estado que la burbuja lee.
+  static String dirDatos = '';
+
   static Future<bool> tienePermiso() async {
     try {
       return await _channel.invokeMethod<bool>('hasPermission') ?? false;
@@ -26,7 +29,7 @@ class BubbleOverlay {
   /// Muestra la burbuja (inicia el overlay nativo).
   static Future<void> mostrar({required bool conectado, required String fecha}) async {
     try {
-      await _channel.invokeMethod('show', {'conectado': conectado, 'fecha': fecha});
+      await _channel.invokeMethod('show', {'conectado': conectado, 'fecha': fecha, 'dirDatos': dirDatos});
     } catch (e) {
       Logger.e('Bubble', 'No se pudo mostrar la burbuja: $e');
     }
@@ -35,7 +38,7 @@ class BubbleOverlay {
   /// Actualiza el estado de la burbuja si ya esta visible.
   static Future<void> actualizar({required bool conectado, required String fecha}) async {
     try {
-      await _channel.invokeMethod('update', {'conectado': conectado, 'fecha': fecha});
+      await _channel.invokeMethod('update', {'conectado': conectado, 'fecha': fecha, 'dirDatos': dirDatos});
     } catch (_) {}
   }
 

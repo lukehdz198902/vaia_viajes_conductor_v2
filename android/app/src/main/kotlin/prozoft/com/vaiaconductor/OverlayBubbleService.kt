@@ -24,6 +24,7 @@ import android.widget.TextView
 object BubbleState {
     @Volatile var conectado: Boolean = false
     @Volatile var fecha: String = "--/-- --:--:--"
+    @Volatile var dirDatos: String = ""
 }
 
 /**
@@ -186,10 +187,31 @@ class OverlayBubbleService : Service() {
         } catch (_: Exception) {}
     }
 
+    /**
+     * Lee el estado que escribe el servicio en primer plano de Flutter
+     * (formato "conectado|dd/MM HH:mm:ss"). Asi la burbuja refleja la ultima
+     * ubicacion enviada aunque la app este minimizada.
+     */
+    private fun leerArchivoEstado(): Pair<Boolean, String>? {
+        val dir = BubbleState.dirDatos
+        if (dir.isEmpty()) return null
+        return try {
+            val f = java.io.File(dir, "vaia_estado_ubicacion.txt")
+            if (!f.exists()) return null
+            val partes = f.readText().trim().split("|")
+            if (partes.size < 2) null else Pair(partes[0] == "1", partes[1])
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun actualizar() {
-        val color = if (BubbleState.conectado) "#10B981" else "#94A3B8"
+        val archivo = leerArchivoEstado()
+        val conectado = archivo?.first ?: BubbleState.conectado
+        val fecha = archivo?.second ?: BubbleState.fecha
+        val color = if (conectado) "#10B981" else "#94A3B8"
         (dotView?.background as? GradientDrawable)?.setColor(Color.parseColor(color))
-        timeView?.text = BubbleState.fecha
+        timeView?.text = fecha
     }
 
     override fun onDestroy() {

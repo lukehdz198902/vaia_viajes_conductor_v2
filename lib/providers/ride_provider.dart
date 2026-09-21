@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/servicio_model.dart';
 import '../models/parada_model.dart';
 import '../services/api_service.dart';
@@ -45,6 +46,7 @@ class RideProvider extends ChangeNotifier {
   bool _permisoUbicacionOk = false;
   int _intervaloSegundos = 15;
   bool _enPrimerPlano = true;
+  String _dirDatos = '';
   StreamSubscription? _subEventos;
   StreamSubscription? _subConexion;
 
@@ -191,14 +193,25 @@ class RideProvider extends ChangeNotifier {
 
     // Servicio en primer plano: mantiene el reporte de ubicacion incluso con
     // la app en segundo plano o minimizada.
-    ForegroundServiceManager.iniciar(
+    _iniciarServicioFondo(conductorId);
+    _asegurarPermisoBurbuja();
+  }
+
+  /// Arranca el servicio en primer plano con el directorio donde se escribe el
+  /// estado que consume la burbuja nativa.
+  Future<void> _iniciarServicioFondo(int conductorId) async {
+    try {
+      _dirDatos = (await getApplicationSupportDirectory()).path;
+    } catch (_) {}
+    BubbleOverlay.dirDatos = _dirDatos;
+    await ForegroundServiceManager.iniciar(
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
       intervaloSegundos: _intervaloSegundos,
       idConductor: conductorId,
+      dirDatos: _dirDatos,
     );
-    ForegroundServiceManager.marcarPrimerPlano(_enPrimerPlano);
-    _asegurarPermisoBurbuja();
+    await ForegroundServiceManager.marcarPrimerPlano(_enPrimerPlano);
   }
 
   /// Lee el intervalo de envio de ubicacion configurado en el portal.
@@ -223,6 +236,7 @@ class RideProvider extends ChangeNotifier {
   void marcarPrimerPlano(bool enPrimerPlano) {
     _enPrimerPlano = enPrimerPlano;
     ForegroundServiceManager.marcarPrimerPlano(enPrimerPlano);
+    escribirEstadoUbicacion(_dirDatos, _conectadoWs, _ultimaUbicacion);
     if (enPrimerPlano) {
       // Al volver, refresca la hora del ultimo envio hecho en segundo plano.
       ForegroundServiceManager.ultimaUbicacion().then((d) {
@@ -301,6 +315,7 @@ class RideProvider extends ChangeNotifier {
             _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
       }
       _ultimaUbicacion = DateTime.now();
+      escribirEstadoUbicacion(_dirDatos, true, _ultimaUbicacion);
       _actualizarNotificacion();
       if (_taxiActivo) await _reportarTaximetro(pos);
     } catch (_) {}
