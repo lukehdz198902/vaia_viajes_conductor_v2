@@ -23,10 +23,12 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     await Future.delayed(const Duration(milliseconds: 1500));
     if (!mounted) return;
+    // Se elimina por completo el splash de la pila para que nunca quede de
+    // fondo ni vuelva a mostrarse al cerrar la pantalla principal.
     if (auth.isLoggedIn) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
     } else {
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 

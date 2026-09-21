@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _api = ApiService();
   Map<String, dynamic>? _resumen;
   Timer? _resumenTimer;
+  Timer? _gpsTimer;
 
   // Mapa de zonas de demanda / conexion
   GoogleMapController? _mapController;
@@ -181,7 +182,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _iniciarSeguimiento();
       _cargarResumen();
       _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
+      // Vigila que el GPS siga activo mientras el conductor esta conectado.
+      _gpsTimer = Timer.periodic(const Duration(seconds: 15), (_) => _vigilarGps());
     });
+  }
+
+  /// Si el conductor esta conectado y apaga el GPS, se desconecta y se le pide
+  /// reactivarlo: sin GPS no puede reportar su ubicacion.
+  Future<void> _vigilarGps() async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isOnline) return;
+    final activo = await Geolocator.isLocationServiceEnabled();
+    if (activo || !mounted) return;
+    await auth.toggleOnline();
+    if (mounted) await _verificarGps(soloAviso: true);
   }
 
   /// Muestra la burbuja flotante al minimizar/cerrar la app y la oculta al volver.
@@ -235,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _posSub?.cancel();
+    _gpsTimer?.cancel();
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -254,40 +270,137 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
     });
 
-    return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _buildTopBar(context, auth),
-            Expanded(
-              child: ride.activeRide != null
-                  ? _buildActiveRideView(ride)
-                  : _buildIdleView(context, auth, ride),
-            ),
-            _buildBottomPanel(context, auth, ride),
+    return PopScope(
+      canPop: !auth.isOnline,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        await _confirmarCierre(auth);
+      },
+      child: Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              _buildTopBar(context, auth),
+              Expanded(
+                child: ride.activeRide != null
+                    ? _buildActiveRideView(ride)
+                    : _buildIdleView(context, auth, ride),
+              ),
+              _buildBottomPanel(context, auth, ride),
+            ],
+          ),
+        ),
+        bottomNavigationBar: BottomNavigationBar(
+          currentIndex: 0,
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: VaiaColors.primary,
+          items: const [
+            BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Inicio'),
+            BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Historial'),
+            BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Perfil'),
+            BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Ganancias'),
           ],
+          onTap: (i) {
+            if (i == 0) return;
+            // Conectado: solo se esperan servicios. Para otra seccion hay que
+            // desconectarse primero.
+            if (auth.isOnline) {
+              _aviso('Desconectate para acceder a esta seccion');
+              return;
+            }
+            switch (i) {
+              case 1: Navigator.pushNamed(context, '/history');
+              case 2: Navigator.pushNamed(context, '/profile');
+              case 3: Navigator.pushNamed(context, '/earnings');
+            }
+          },
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: VaiaColors.primary,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Historial'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Perfil'),
-          BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Ganancias'),
+    );
+  }
+
+  String _fmtHora(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}:${d.second.toString().padLeft(2, '0')}';
+
+  void _aviso(String mensaje) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(mensaje),
+      backgroundColor: VaiaColors.warning,
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  /// Advierte al conductor conectado antes de cerrar la app.
+  Future<void> _confirmarCierre(AuthProvider auth) async {
+    final salir = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: const Icon(Icons.warning_amber_rounded, color: VaiaColors.warning, size: 38),
+        title: const Text('Estas conectado'),
+        content: const Text(
+            'Si cierras la app dejarias de recibir servicios y no podras trabajar. ¿Deseas salir de todas formas?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Seguir conectado')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: VaiaColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salir'),
+          ),
         ],
-        onTap: (i) {
-          switch (i) {
-            case 1: Navigator.pushNamed(context, '/history');
-            case 2: Navigator.pushNamed(context, '/profile');
-            case 3: Navigator.pushNamed(context, '/earnings');
-          }
-        },
       ),
     );
+    if (salir != true || !mounted) return;
+    await auth.toggleOnline();
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  /// El GPS es obligatorio: si esta apagado no se permite conectarse.
+  Future<bool> _verificarGps({bool soloAviso = false}) async {
+    final activo = await Geolocator.isLocationServiceEnabled();
+    if (activo) return true;
+    if (!mounted) return false;
+    if (soloAviso) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+          icon: const Icon(Icons.gps_off_rounded, color: VaiaColors.danger, size: 38),
+          title: const Text('GPS desactivado'),
+          content: const Text(
+              'Tu ubicacion dejo de enviarse y por eso te desconectamos. El GPS es indispensable para trabajar; activalo para volver a conectarte.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cerrar')),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Geolocator.openLocationSettings();
+              },
+              child: const Text('Activar GPS'),
+            ),
+          ],
+        ),
+      );
+      return false;
+    }
+    final abrir = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: const Icon(Icons.gps_off_rounded, color: VaiaColors.danger, size: 38),
+        title: const Text('GPS desactivado'),
+        content: const Text(
+            'El GPS es indispensable para enviar tu ubicacion a los pasajeros y administradores. Activalo para poder conectarte.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Activar GPS')),
+        ],
+      ),
+    );
+    if (abrir == true) await Geolocator.openLocationSettings();
+    return false;
   }
 
   Widget _buildTopBar(BuildContext context, AuthProvider auth) {
@@ -642,7 +755,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _statTile(Icons.star_rounded, 'Rating', auth.conductor?.calificacionPromedio?.toStringAsFixed(1) ?? '0.0', VaiaColors.warning),
                 ],
               ),
-              const SizedBox(height: 16),
+              if (auth.isOnline) ...[
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      ride.ultimaUbicacion != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
+                      size: 14,
+                      color: ride.ultimaUbicacion != null ? VaiaColors.onlineGreen : VaiaColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      ride.ultimaUbicacion != null
+                          ? 'Ultima ubicacion enviada: ${_fmtHora(ride.ultimaUbicacion!)}'
+                          : 'Enviando ubicacion...',
+                      style: const TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 14),
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -650,6 +783,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onPressed: () async {
                     final auth = context.read<AuthProvider>();
                     final messenger = ScaffoldMessenger.of(context);
+                    // El GPS es obligatorio para poder conectarse.
+                    if (!auth.isOnline) {
+                      final okGps = await _verificarGps();
+                      if (!okGps || !mounted) return;
+                    }
                     final ok = await auth.toggleOnline();
                     if (!mounted) return;
                     if (!ok) {

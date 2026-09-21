@@ -193,8 +193,9 @@ class OverlayBubbleService : Service() {
      * ubicacion enviada aunque la app este minimizada.
      */
     private fun leerArchivoEstado(): Pair<Boolean, String>? {
-        val dir = BubbleState.dirDatos
-        if (dir.isEmpty()) return null
+        // Si Flutter no envio el directorio, usa filesDir (que es el que
+        // devuelve getApplicationSupportDirectory en Android).
+        val dir = if (BubbleState.dirDatos.isNotEmpty()) BubbleState.dirDatos else filesDir.absolutePath
         return try {
             val f = java.io.File(dir, "vaia_estado_ubicacion.txt")
             if (!f.exists()) return null

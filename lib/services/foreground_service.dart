@@ -52,9 +52,6 @@ class _ConductorTaskHandler extends TaskHandler {
   Future<void> _reportar() async {
     if (_idConductor <= 0) return;
     try {
-      final enPrimerPlano = await FlutterForegroundTask.getData<bool>(key: 'enPrimerPlano') ?? true;
-      if (enPrimerPlano) return;
-
       final perm = await Geolocator.checkPermission();
       if (perm != LocationPermission.always && perm != LocationPermission.whileInUse) return;
 

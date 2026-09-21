@@ -125,22 +125,42 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ─── Acciones ───────────────────────────────────────
+            if (auth.isOnline)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: VaiaColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(VaiaRadius.md),
+                  border: Border.all(color: VaiaColors.warning.withValues(alpha: 0.35)),
+                ),
+                child: const Row(children: [
+                  Icon(Icons.lock_outline_rounded, color: VaiaColors.warning, size: 18),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Estas conectado. Desconectate para modificar tus unidades, documentos o configuracion.',
+                      style: TextStyle(fontSize: 12, color: VaiaColors.textSecondary),
+                    ),
+                  ),
+                ]),
+              ),
             VaiaPrimaryButton(
               label: 'Mis vehiculos',
               icon: Icons.directions_car_filled_rounded,
-              onPressed: () => Navigator.pushNamed(context, '/vehicle'),
+              onPressed: auth.isOnline ? null : () => Navigator.pushNamed(context, '/vehicle'),
             ),
             const SizedBox(height: 10),
             VaiaOutlineButton(
               label: 'Mi documentacion',
               icon: Icons.folder_shared_outlined,
-              onPressed: () => Navigator.pushNamed(context, '/documents'),
+              onPressed: auth.isOnline ? null : () => Navigator.pushNamed(context, '/documents'),
             ),
             const SizedBox(height: 10),
             VaiaOutlineButton(
               label: 'Configuracion',
               icon: Icons.settings_outlined,
-              onPressed: () => Navigator.pushNamed(context, '/settings'),
+              onPressed: auth.isOnline ? null : () => Navigator.pushNamed(context, '/settings'),
             ),
             const SizedBox(height: 20),
           ],
