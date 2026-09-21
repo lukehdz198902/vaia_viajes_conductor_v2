@@ -40,7 +40,7 @@
         <!-- Google Maps SDK for Android -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCsrsPjHgSu6QxquEqKjIS1lpFekFcrqlg" />
+            android:value="AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk" />
         <!-- Burbuja flotante (overlay) del conductor -->
         <service
             android:name=".OverlayBubbleService"
