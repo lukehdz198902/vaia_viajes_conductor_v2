@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "prozoft.com.vaiaconductor"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

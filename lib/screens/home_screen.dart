@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -27,6 +29,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Map<String, dynamic>? _resumen;
   Timer? _resumenTimer;
   Timer? _gpsTimer;
+  Timer? _batteryTimer;
+  final _battery = Battery();
+  bool _wakelockActivo = false;
 
   // Mapa de zonas de demanda / conexion
   GoogleMapController? _mapController;
@@ -184,7 +189,44 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
       // Vigila que el GPS siga activo mientras el conductor esta conectado.
       _gpsTimer = Timer.periodic(const Duration(seconds: 15), (_) => _vigilarGps());
+      // Vigila la bateria: sin carga y por debajo del 20% se desconecta.
+      _batteryTimer = Timer.periodic(const Duration(seconds: 60), (_) => _vigilarBateria());
     });
+  }
+
+  /// Si el conductor esta conectado, sin servicio activo, con bateria menor al
+  /// 20% y sin estar cargando, se desconecta para no quedarse sin energia.
+  Future<void> _vigilarBateria() async {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    if (!auth.isOnline) return;
+    final ride = context.read<RideProvider>();
+    if (ride.activeRide != null) return; // En servicio no se desconecta.
+    try {
+      final nivel = await _battery.batteryLevel;
+      final estado = await _battery.batteryState;
+      final cargando = estado == BatteryState.charging || estado == BatteryState.full;
+      if (nivel < 20 && !cargando) {
+        await auth.toggleOnline();
+        if (mounted) await _avisoBateria(nivel);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _avisoBateria(int nivel) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: const Icon(Icons.battery_alert_rounded, color: VaiaColors.danger, size: 38),
+        title: const Text('Bateria baja'),
+        content: Text(
+            'Tu bateria esta al $nivel% y no esta cargando, por lo que te desconectamos para que no te quedes sin energia. Conecta tu telefono al cargador y vuelve a conectarte.'),
+        actions: [
+          ElevatedButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+        ],
+      ),
+    );
   }
 
   /// Si el conductor esta conectado y apaga el GPS, se desconecta y se le pide
@@ -251,6 +293,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _posSub?.cancel();
     _gpsTimer?.cancel();
+    _batteryTimer?.cancel();
+    WakelockPlus.disable();
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -261,6 +305,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final ride = context.watch<RideProvider>();
+
+    // Mantiene la pantalla encendida mientras el conductor esta conectado.
+    if (auth.isOnline != _wakelockActivo) {
+      _wakelockActivo = auth.isOnline;
+      WakelockPlus.toggle(enable: auth.isOnline);
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

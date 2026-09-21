@@ -27,6 +27,8 @@ import 'screens/rating_screen.dart';
 import 'screens/support_chat_screen.dart';
 import 'screens/documents_screen.dart';
 import 'screens/vehicle_documents_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/permisos_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,6 +68,10 @@ class VaiaViajesApp extends StatelessWidget {
         switch (settings.name) {
           case '/splash':
             page = const SplashScreen();
+          case '/onboarding':
+            page = const OnboardingScreen();
+          case '/permisos':
+            page = const PermisosScreen();
           case '/login':
             page = const LoginScreen();
           case '/register':

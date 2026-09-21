@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../services/storage_service.dart';
 import '../widgets/vaia_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -19,9 +20,17 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _initApp() async {
     final auth = context.read<AuthProvider>();
+    final storage = StorageService();
+    // Primer arranque: primero los permisos y la aceptacion de terminos.
+    final onboarding = await storage.getOnboardingCompletado();
+    if (!mounted) return;
+    if (!onboarding) {
+      Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+      return;
+    }
     await auth.tryAutoLogin();
     if (!mounted) return;
-    await Future.delayed(const Duration(milliseconds: 1500));
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
     // Se elimina por completo el splash de la pila para que nunca quede de
     // fondo ni vuelva a mostrarse al cerrar la pantalla principal.
