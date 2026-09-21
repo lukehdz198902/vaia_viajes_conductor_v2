@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _batteryTimer;
   final _battery = Battery();
   bool _wakelockActivo = false;
+  bool _alertaAbierta = false;
 
   // Mapa de zonas de demanda / conexion
   GoogleMapController? _mapController;
@@ -183,6 +184,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _promptEmailVerification(auth);
       if (!mounted) return;
       await _seleccionarUnidadPredeterminada();
+      // Si quedo un servicio sin concluir, se le pide cerrarlo.
+      await ride.revisarServicioActivo(auth.userId);
+      if (mounted && ride.activeRide != null) {
+        await _revisarServicioPendiente(ride.activeRide!);
+      }
       _cargarMapa();
       _iniciarSeguimiento();
       _cargarResumen();
@@ -239,6 +245,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (activo || !mounted) return;
     await auth.toggleOnline();
     if (mounted) await _verificarGps(soloAviso: true);
+  }
+
+  /// Si al ingresar existe un servicio sin concluir, se le pide cerrarlo
+  /// (cobrando solo lo calculado o la tarifa estimada) para poder laborar.
+  Future<void> _revisarServicioPendiente(Servicio s) async {
+    final ride = context.read<RideProvider>();
+    final auth = context.read<AuthProvider>();
+
+    // Si el viaje ya estaba iniciado, se continua en la pantalla del servicio.
+    if ((s.servicioEstatus ?? '') == 'En Viaje') {
+      Navigator.pushNamed(context, '/service_status');
+      return;
+    }
+
+    final concluir = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: const Icon(Icons.warning_amber_rounded, color: VaiaColors.warning, size: 38),
+        title: const Text('Servicio pendiente'),
+        content: Text(
+            'Quedo un servicio sin concluir (#${s.id}). Para poder volver a laborar debes concluirlo. Se cobrara unicamente lo calculado hasta el momento o la tarifa estimada.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Ver servicio')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Concluir ahora')),
+        ],
+      ),
+    );
+
+    if (concluir == true) {
+      final ok = await ride.concluirServicioPendiente(s.id, auth.userId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ok ? 'Servicio concluido. Ya puedes laborar.' : (ride.error ?? 'No se pudo concluir')),
+        backgroundColor: ok ? VaiaColors.success : VaiaColors.danger,
+      ));
+    } else {
+      Navigator.pushNamed(context, '/service_status');
+    }
   }
 
   /// Muestra la burbuja flotante al minimizar/cerrar la app y la oculta al volver.
@@ -312,11 +357,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       WakelockPlus.toggle(enable: auth.isOnline);
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      // Servicio entrante via WebSocket -> pantalla de alerta
-      if (ride.servicioOfrecido != null && ride.hasNewRequest) {
-        Navigator.pushNamed(context, '/service_alert');
+      // Servicio entrante -> tarjeta de alerta. Se muestra UNA sola vez y no
+      // se empalma con otras.
+      if (ride.servicioOfrecido != null && ride.hasNewRequest && !_alertaAbierta) {
+        _alertaAbierta = true;
+        await Navigator.pushNamed(context, '/service_alert');
+        _alertaAbierta = false;
       }
     });
 

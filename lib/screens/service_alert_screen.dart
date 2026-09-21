@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
+import '../services/directions_service.dart';
+import '../widgets/vaia_widgets.dart';
 
+/// Tarjeta de servicio entrante: ocupa la mitad inferior de la pantalla, es
+/// temporal (se cierra al expirar), se muestra una sola vez y permite aceptar
+/// o rechazar/ignorar el servicio.
 class ServiceAlertScreen extends StatefulWidget {
   const ServiceAlertScreen({super.key});
   @override
@@ -16,6 +22,14 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
   int _segundosRestantes = 30;
   int _segundosTotales = 30;
   Timer? _countdown;
+
+  final Set<Marker> _markers = {};
+  final Set<Polyline> _polylines = {};
+  GoogleMapController? _mapCtrl;
+  bool _mapaListo = false;
+
+  double? _kmRuta;
+  int? _minRuta;
 
   @override
   void initState() {
@@ -29,8 +43,15 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
         _segundosTotales = total > 0 ? total : 30;
         _segundosRestantes = _segundosTotales;
       });
+      _prepararMapa();
       _iniciarContador();
     });
+  }
+
+  @override
+  void dispose() {
+    _countdown?.cancel();
+    super.dispose();
   }
 
   void _iniciarContador() {
@@ -45,10 +66,70 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
     });
   }
 
-  @override
-  void dispose() {
-    _countdown?.cancel();
-    super.dispose();
+  /// Prepara el mapa con origen, destino y la ruta estimada.
+  Future<void> _prepararMapa() async {
+    final ride = context.read<RideProvider>();
+    final s = ride.servicioOfrecido ?? ride.activeRide;
+    if (s == null) return;
+
+    final latO = double.tryParse(s.latOrigen ?? '');
+    final lngO = double.tryParse(s.lngOrigen ?? '');
+    final latD = double.tryParse(s.latDestino ?? '');
+    final lngD = double.tryParse(s.lngDestino ?? '');
+    if (latO == null || lngO == null || latD == null || lngD == null) return;
+
+    final origen = LatLng(latO, lngO);
+    final destino = LatLng(latD, lngD);
+
+    setState(() {
+      _markers
+        ..clear()
+        ..add(Marker(
+          markerId: const MarkerId('origen'),
+          position: origen,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          infoWindow: InfoWindow(title: 'Origen', snippet: s.direccionOrigen ?? ''),
+        ))
+        ..add(Marker(
+          markerId: const MarkerId('destino'),
+          position: destino,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          infoWindow: InfoWindow(title: 'Destino', snippet: s.direccionDestino ?? ''),
+        ));
+    });
+
+    final ruta = await DirectionsService.ruta(origen: origen, destino: destino);
+    if (!mounted) return;
+    if (ruta != null) {
+      setState(() {
+        _polylines
+          ..clear()
+          ..add(Polyline(
+            polylineId: const PolylineId('ruta'),
+            points: ruta.puntos,
+            color: VaiaColors.primary,
+            width: 5,
+          ));
+        _kmRuta = ruta.distanciaMetros / 1000;
+        _minRuta = (ruta.duracionSegundos / 60).round();
+      });
+    }
+    _ajustarCamara(origen, destino);
+  }
+
+  void _ajustarCamara(LatLng a, LatLng b) {
+    if (_mapCtrl == null) return;
+    final bounds = LatLngBounds(
+      southwest: LatLng(
+        a.latitude < b.latitude ? a.latitude : b.latitude,
+        a.longitude < b.longitude ? a.longitude : b.longitude,
+      ),
+      northeast: LatLng(
+        a.latitude > b.latitude ? a.latitude : b.latitude,
+        a.longitude > b.longitude ? a.longitude : b.longitude,
+      ),
+    );
+    _mapCtrl!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
   }
 
   Future<void> _rechazar({bool auto = false}) async {
@@ -57,182 +138,288 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
     final s = ride.servicioOfrecido ?? ride.activeRide;
     if (s == null || _procesando) return;
     setState(() => _procesando = true);
-    await ride.rejectRide(s.id, auth.userId, motivo: auto ? 'Sin respuesta en 30s' : 'Rechazado por conductor');
+    await ride.rejectRide(s.id, auth.userId, motivo: auto ? 'Sin respuesta en el tiempo' : 'Rechazado por conductor');
+    if (!mounted) return;
+    ride.limpiarOfrecido();
+    Navigator.pop(context);
+  }
+
+  Future<void> _aceptar() async {
+    final ride = context.read<RideProvider>();
+    final auth = context.read<AuthProvider>();
+    final s = ride.servicioOfrecido ?? ride.activeRide;
+    if (s == null || _procesando) return;
+    setState(() => _procesando = true);
+    _countdown?.cancel();
+    final ok = await ride.acceptRide(s.id, auth.userId);
     if (!mounted) return;
     setState(() => _procesando = false);
-    Navigator.pop(context);
+    if (ok) {
+      Navigator.pushReplacementNamed(context, '/service_status');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(ride.error ?? 'No se pudo aceptar el servicio'),
+        backgroundColor: VaiaColors.danger,
+      ));
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final ride = context.watch<RideProvider>();
-    final auth = context.watch<AuthProvider>();
     final s = ride.servicioOfrecido ?? ride.activeRide;
 
+    if (s == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
+    final km = _kmRuta ?? (s.distanciaMetros != null ? s.distanciaMetros! / 1000 : null);
+    final min = _minRuta ?? (s.distanciaMetros != null ? (s.distanciaMetros! / 8.33 / 60).round() : null);
+    final progreso = _segundosTotales > 0 ? (_segundosRestantes / _segundosTotales).clamp(0.0, 1.0) : 0.0;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Solicitud de Servicio')),
-      body: s == null
-          ? const Center(child: Text('No hay solicitudes activas'))
-          : Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: Colors.black.withValues(alpha: 0.35),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ─── Mapa (mitad superior) ───────────────────────────
+            Expanded(
+              flex: 45,
+              child: Stack(
                 children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.timer_outlined, color: AppTheme.primary, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Responde en $_segundosRestantes segundos',
-                            style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary),
-                          ),
-                        ),
+                  GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(
+                        double.tryParse(s.latOrigen ?? '') ?? 26.0923,
+                        double.tryParse(s.lngOrigen ?? '') ?? -98.2789,
+                      ),
+                      zoom: 13,
+                    ),
+                    onMapCreated: (c) {
+                      _mapCtrl = c;
+                      _mapaListo = true;
+                      final latO = double.tryParse(s.latOrigen ?? '');
+                      final lngO = double.tryParse(s.lngOrigen ?? '');
+                      final latD = double.tryParse(s.latDestino ?? '');
+                      final lngD = double.tryParse(s.lngDestino ?? '');
+                      if (latO != null && lngO != null && latD != null && lngD != null) {
+                        _ajustarCamara(LatLng(latO, lngO), LatLng(latD, lngD));
+                      }
+                    },
+                    markers: _markers,
+                    polylines: _polylines,
+                    zoomControlsEnabled: false,
+                    compassEnabled: false,
+                    mapToolbarEnabled: false,
+                    myLocationEnabled: false,
+                  ),
+                  if (!_mapaListo)
+                    const Center(child: CircularProgressIndicator()),
+                  // Barra de tiempo restante
+                  Positioned(
+                    top: 10, left: 10, right: 10,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: VaiaColors.surface,
+                        borderRadius: BorderRadius.circular(VaiaRadius.md),
+                        boxShadow: VaiaShadows.card,
+                      ),
+                      child: Row(children: [
                         SizedBox(
-                          width: 40, height: 40,
+                          width: 34, height: 34,
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
                               CircularProgressIndicator(
-                                value: _segundosTotales > 0 ? _segundosRestantes / _segundosTotales : 0,
+                                value: progreso,
                                 strokeWidth: 3,
-                                backgroundColor: AppTheme.primary.withValues(alpha: 0.15),
-                                valueColor: const AlwaysStoppedAnimation(AppTheme.primary),
+                                backgroundColor: VaiaColors.bgMuted,
+                                valueColor: AlwaysStoppedAnimation(
+                                  _segundosRestantes <= 10 ? VaiaColors.danger : VaiaColors.primary,
+                                ),
                               ),
-                              Text('$_segundosRestantes', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              Text('$_segundosRestantes',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(backgroundColor: AppTheme.primary, radius: 30, child: Text(s.pasajeroNombre?.isNotEmpty == true ? s.pasajeroNombre![0] : '?', style: const TextStyle(fontSize: 24, color: Colors.white))),
-                              const SizedBox(width: 16),
-                              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(s.pasajeroNombre ?? 'Pasajero', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 4),
-                                Row(children: [
-                                  const Icon(Icons.star_rounded, size: 16, color: AppTheme.secondary),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    (s.pasajeroCalificacion ?? 0) > 0
-                                        ? s.pasajeroCalificacion!.toStringAsFixed(1)
-                                        : 'Sin calificacion',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Icon(Icons.route_rounded, size: 15, color: AppTheme.textMedium),
-                                  const SizedBox(width: 4),
-                                  Text('${s.pasajeroTotalViajes ?? 0} viajes',
-                                      style: const TextStyle(color: AppTheme.textMedium, fontSize: 13)),
-                                ]),
-                              ])),
-                            ],
-                          ),
-                          const Divider(),
-                          _detailRow(Icons.my_location, 'Origen', s.direccionOrigen ?? ''),
-                          const SizedBox(height: 8),
-                          _detailRow(Icons.location_on, 'Destino', s.direccionDestino ?? ''),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        children: [
-                          if (s.distanciaMetros != null) _infoRow('Distancia', '${(s.distanciaMetros! / 1000).toStringAsFixed(1)} km'),
-                          if (s.costoEstimado != null) _infoRow('Costo', '\$${s.costoEstimado!.toStringAsFixed(2)}'),
-                          if (s.tipoViaje != null) _infoRow('Tipo', s.tipoViaje!),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _procesando
-                          ? null
-                          : () async {
-                              final nav = Navigator.of(context);
-                              final messenger = ScaffoldMessenger.of(context);
-                              setState(() => _procesando = true);
-                              _countdown?.cancel();
-                              final ok = await ride.acceptRide(s.id, auth.userId);
-                              if (!mounted) return;
-                              setState(() => _procesando = false);
-                              if (ok) {
-                                nav.pushReplacementNamed('/service_status');
-                              } else {
-                                messenger.showSnackBar(SnackBar(
-                                  content: Text(ride.error ?? 'No se pudo aceptar'),
-                                  backgroundColor: AppTheme.danger,
-                                ));
-                              }
-                            },
-                      icon: _procesando
-                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.check_circle),
-                      label: const Text('Aceptar Servicio'),
-                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.accent, padding: const EdgeInsets.symmetric(vertical: 16)),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: _procesando ? null : () => _rechazar(),
-                      icon: const Icon(Icons.close_rounded),
-                      label: const Text('Rechazar'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.danger,
-                        side: const BorderSide(color: AppTheme.danger),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text('Responde antes de que termine el tiempo',
+                              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                        ),
+                      ]),
                     ),
                   ),
                 ],
               ),
             ),
+
+            // ─── Tarjeta (mitad inferior) ────────────────────────
+            Expanded(
+              flex: 55,
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  color: VaiaColors.surface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(10)),
+                          child: const Icon(Icons.notifications_active_rounded, color: VaiaColors.primary, size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text('Nuevo servicio', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                        ),
+                        // X para rechazar / ignorar
+                        InkWell(
+                          onTap: _procesando ? null : () => _rechazar(),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(color: VaiaColors.bgMuted, shape: BoxShape.circle),
+                            child: const Icon(Icons.close_rounded, size: 18, color: VaiaColors.textSecondary),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 14),
+
+                      // Datos del pasajero
+                      Row(children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: VaiaColors.primaryGhost,
+                          child: Text(
+                            (s.pasajeroNombre ?? 'P')[0].toUpperCase(),
+                            style: const TextStyle(fontWeight: FontWeight.w800, color: VaiaColors.primary, fontSize: 18),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(s.pasajeroNombre ?? 'Pasajero',
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                            const SizedBox(height: 4),
+                            Row(children: [
+                              const Icon(Icons.star_rounded, size: 15, color: VaiaColors.warning),
+                              const SizedBox(width: 4),
+                              Text(
+                                (s.pasajeroCalificacion ?? 0) > 0
+                                    ? s.pasajeroCalificacion!.toStringAsFixed(1)
+                                    : 'Sin calificacion',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12.5),
+                              ),
+                              const SizedBox(width: 12),
+                              const Icon(Icons.route_rounded, size: 14, color: VaiaColors.textMuted),
+                              const SizedBox(width: 4),
+                              Text('${s.pasajeroTotalViajes ?? 0} servicios',
+                                  style: const TextStyle(color: VaiaColors.textSecondary, fontSize: 12.5)),
+                            ]),
+                          ]),
+                        ),
+                      ]),
+                      const SizedBox(height: 14),
+
+                      // Recorrido
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: VaiaColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(VaiaRadius.md),
+                          border: Border.all(color: VaiaColors.border),
+                        ),
+                        child: Column(children: [
+                          _punto(Icons.trip_origin, VaiaColors.onlineGreen, 'Origen', s.direccionOrigen ?? '-'),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 11),
+                            child: Container(width: 2, height: 18, color: VaiaColors.border),
+                          ),
+                          _punto(Icons.location_on_rounded, VaiaColors.danger, 'Destino', s.direccionDestino ?? '-'),
+                        ]),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Metricas
+                      Row(children: [
+                        _metrica(Icons.straighten_rounded, km != null ? '${km.toStringAsFixed(1)} km' : '--', 'Distancia'),
+                        _metrica(Icons.timer_outlined, min != null ? '$min min' : '--', 'Tiempo'),
+                        _metrica(Icons.payments_rounded,
+                            s.costoEstimado != null ? '\$${s.costoEstimado!.toStringAsFixed(0)}' : '--', 'Estimado'),
+                      ]),
+                      const SizedBox(height: 16),
+
+                      // Acciones
+                      Row(children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _procesando ? null : () => _rechazar(),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            label: const Text('Ignorar'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: VaiaColors.danger,
+                              side: const BorderSide(color: VaiaColors.danger),
+                              minimumSize: const Size(0, 48),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: VaiaPrimaryButton(
+                            label: 'Aceptar servicio',
+                            icon: Icons.check_rounded,
+                            loading: _procesando,
+                            onPressed: _procesando ? null : _aceptar,
+                          ),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: AppTheme.primary),
-        const SizedBox(width: 8),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: const TextStyle(color: AppTheme.textMedium, fontSize: 12)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
-        ])),
-      ],
-    );
+  Widget _punto(IconData icono, Color color, String label, String valor) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icono, size: 16, color: color),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label, style: const TextStyle(fontSize: 10.5, color: VaiaColors.textMuted, fontWeight: FontWeight.w700)),
+          Text(valor, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), maxLines: 2, overflow: TextOverflow.ellipsis),
+        ]),
+      ),
+    ]);
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label, style: const TextStyle(color: AppTheme.textMedium)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ]),
+  Widget _metrica(IconData icono, String valor, String label) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 3),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(color: VaiaColors.bgSubtle, borderRadius: BorderRadius.circular(VaiaRadius.md)),
+        child: Column(children: [
+          Icon(icono, size: 17, color: VaiaColors.primary),
+          const SizedBox(height: 3),
+          Text(valor, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+          Text(label, style: const TextStyle(fontSize: 9.5, color: VaiaColors.textMuted, fontWeight: FontWeight.w600)),
+        ]),
+      ),
     );
   }
 }

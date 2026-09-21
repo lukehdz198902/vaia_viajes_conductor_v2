@@ -276,6 +276,14 @@ class ApiService {
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
 
+  /// Concluye un servicio que quedo pendiente (para poder volver a laborar).
+  Future<ApiResponse> concluirServicioPendiente(int idServicio, int idConductor, {double? costoFinal}) =>
+      post('${ApiConfig.conductorEndpoint}/ConcluirServicioPendiente', {
+        'idServicio': idServicio,
+        'idConductor': idConductor,
+        if (costoFinal != null) 'costoFinal': costoFinal,
+      });
+
   /// Recupera la contrasena validando el codigo enviado por WhatsApp.
   Future<ApiResponse> recuperarPassword(String telefono, String codigo, String passNuevo) =>
       post('${ApiConfig.conductorEndpoint}/RecuperarPassword', {

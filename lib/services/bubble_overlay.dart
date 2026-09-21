@@ -48,6 +48,14 @@ class BubbleOverlay {
     } catch (_) {}
   }
 
+  /// Trae la app al frente (por ejemplo cuando llega un servicio estando en
+  /// modo burbuja/segundo plano).
+  static Future<void> traerAlFrente() async {
+    try {
+      await _channel.invokeMethod('traerAlFrente');
+    } catch (_) {}
+  }
+
   /// Manda la app al fondo (minimizar) para que se vea la burbuja.
   static Future<void> minimizar() async {
     try {

@@ -56,6 +56,20 @@ class MainActivity : FlutterFragmentActivity() {
                     } catch (_: Exception) {}
                     result.success(true)
                 }
+                "traerAlFrente" -> {
+                    try {
+                        val i = packageManager.getLaunchIntentForPackage(packageName)
+                        i?.addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        )
+                        if (i != null) startActivity(i)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
                 "moveToBack" -> {
                     try {
                         moveTaskToBack(true)

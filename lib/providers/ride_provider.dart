@@ -116,6 +116,11 @@ class RideProvider extends ChangeNotifier {
           });
           _hasNewRequest = true;
           notifyListeners();
+          // Si la app esta en segundo plano (burbuja), se trae al frente para
+          // que el conductor vea la tarjeta del servicio.
+          if (!_enPrimerPlano) {
+            BubbleOverlay.traerAlFrente();
+          }
         }
         break;
       case 'EstatusCambiado':
@@ -151,6 +156,11 @@ class RideProvider extends ChangeNotifier {
   void stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
+  }
+
+  /// Consulta de inmediato si hay un servicio activo (al ingresar a la app).
+  Future<void> revisarServicioActivo(int conductorId) async {
+    await _checkActiveRide(conductorId);
   }
 
   Future<void> _checkActiveRide(int conductorId) async {
@@ -521,6 +531,36 @@ class RideProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Activa la alarma SOS (avisa a los administradores).
+  Future<bool> activarSOS(int servicioId, int conductorId) async {
+    try {
+      final resp = await _api.activarAlarmaSOS(servicioId, conductorId);
+      return resp.ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Concluye un servicio pendiente cobrando lo calculado o la tarifa estimada.
+  Future<bool> concluirServicioPendiente(int servicioId, int conductorId, {double? costoFinal}) async {
+    _loading = true;
+    notifyListeners();
+    final resp = await _api.concluirServicioPendiente(servicioId, conductorId, costoFinal: costoFinal);
+    _loading = false;
+    if (resp.ok) {
+      try { await _signalr.salirDeServicio(servicioId); } catch (_) {}
+      _stopGps();
+      detenerTaximetro();
+      _activeRide = null;
+      _paradas.clear();
+      notifyListeners();
+      return true;
+    }
+    _error = resp.mensaje;
+    notifyListeners();
+    return false;
+  }
+
   Future<bool> calificarPasajero(int servicioId, int conductorId, int calificacion, {String? comentarios}) async {
     try {
       final resp = await _api.calificarPasajero(servicioId, conductorId, calificacion, comentarios: comentarios);
@@ -578,6 +618,14 @@ class RideProvider extends ChangeNotifier {
       return Servicio.fromJson(resp.data!);
     }
     return null;
+  }
+
+  /// Limpia la solicitud ofrecida (al ignorarla o cerrarla) para que no se
+  /// vuelva a mostrar la tarjeta.
+  void limpiarOfrecido() {
+    _servicioOfrecido = null;
+    _hasNewRequest = false;
+    notifyListeners();
   }
 
   void clearServicioOfrecido() {
