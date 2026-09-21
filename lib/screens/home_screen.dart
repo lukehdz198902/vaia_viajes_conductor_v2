@@ -357,6 +357,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (mounted) Navigator.of(context).pop();
   }
 
+  /// Explica que se necesita "Permitir todo el tiempo" para seguir enviando
+  /// la ubicacion cuando la app esta minimizada (modo burbuja).
+  Future<void> _solicitarPermisoSegundoPlano() async {
+    final abrir = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
+        icon: const Icon(Icons.location_on_rounded, color: VaiaColors.primary, size: 38),
+        title: const Text('Ubicacion en segundo plano'),
+        content: const Text(
+            'Para seguir enviando tu ubicacion cuando la app esta minimizada o en la burbuja, en los permisos de ubicacion selecciona "Permitir todo el tiempo".'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Mas tarde')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Abrir ajustes')),
+        ],
+      ),
+    );
+    if (abrir == true) await Geolocator.openAppSettings();
+  }
+
   /// El GPS es obligatorio: si esta apagado no se permite conectarse.
   Future<bool> _verificarGps({bool soloAviso = false}) async {
     final activo = await Geolocator.isLocationServiceEnabled();
@@ -797,6 +817,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ));
                     } else {
                       _cargarResumen();
+                      if (auth.isOnline && mounted) {
+                        final ride = context.read<RideProvider>();
+                        await ride.asegurarPermisoUbicacion();
+                        if (mounted && ride.necesitaPermisoSegundoPlano) {
+                          await _solicitarPermisoSegundoPlano();
+                        }
+                      }
                     }
                   },
                   icon: Icon(

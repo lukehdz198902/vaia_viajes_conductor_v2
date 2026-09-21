@@ -66,12 +66,21 @@ class _ConductorTaskHandler extends TaskHandler {
       final perm = await Geolocator.checkPermission();
       if (perm != LocationPermission.always && perm != LocationPermission.whileInUse) return;
 
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 12),
-        ),
-      );
+      // Intenta la posicion actual; si el sistema la bloquea (por ejemplo por
+      // falta del permiso "todo el tiempo"), usa la ultima conocida para no
+      // perder el latido y mantener la conexion.
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 12),
+          ),
+        );
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+      if (pos == null) return;
 
       final uri = Uri.parse('${ApiConfig.baseUrl}/ActualizarUbicacion');
       final resp = await http.post(

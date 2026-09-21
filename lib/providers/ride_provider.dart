@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:path_provider/path_provider.dart';
@@ -44,6 +45,7 @@ class RideProvider extends ChangeNotifier {
   final List<ParadaModel> _paradas = [];
   bool _conectadoWs = false;
   bool _permisoUbicacionOk = false;
+  bool _permisoSegundoPlano = true;
   int _intervaloSegundos = 15;
   bool _enPrimerPlano = true;
   String _dirDatos = '';
@@ -52,8 +54,11 @@ class RideProvider extends ChangeNotifier {
 
   /// Asegura el permiso de ubicacion en tiempo de ejecucion (Android/iOS).
   /// Sin este permiso Geolocator falla y no se reportaba ninguna ubicacion.
+  ///
+  /// En Android tambien se requiere "Permitir todo el tiempo" para seguir
+  /// enviando la ubicacion con la app minimizada (burbuja / segundo plano).
   Future<bool> asegurarPermisoUbicacion() async {
-    if (_permisoUbicacionOk) return true;
+    if (_permisoUbicacionOk && _permisoSegundoPlano) return true;
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return false;
       var perm = await Geolocator.checkPermission();
@@ -61,11 +66,16 @@ class RideProvider extends ChangeNotifier {
         perm = await Geolocator.requestPermission();
       }
       _permisoUbicacionOk = perm == LocationPermission.always || perm == LocationPermission.whileInUse;
+      // En Android, "mientras se usa la app" no basta para el segundo plano.
+      _permisoSegundoPlano = !(!kIsWeb && Platform.isAndroid && perm == LocationPermission.whileInUse);
       return _permisoUbicacionOk;
     } catch (_) {
       return false;
     }
   }
+
+  /// true cuando falta conceder "Permitir todo el tiempo" (solo Android).
+  bool get necesitaPermisoSegundoPlano => !_permisoSegundoPlano;
 
   Servicio? get activeRide => _activeRide;
   Servicio? get servicioOfrecido => _servicioOfrecido;
