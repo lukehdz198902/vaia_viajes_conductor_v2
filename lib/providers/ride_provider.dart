@@ -315,8 +315,10 @@ class RideProvider extends ChangeNotifier {
             _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
       }
       _ultimaUbicacion = DateTime.now();
-      escribirEstadoUbicacion(_dirDatos, true, _ultimaUbicacion);
+      dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, true, _ultimaUbicacion));
       _actualizarNotificacion();
+      // Refresca la hora de "ultima ubicacion enviada" en la pantalla.
+      notifyListeners();
       if (_taxiActivo) await _reportarTaximetro(pos);
     } catch (_) {}
   }

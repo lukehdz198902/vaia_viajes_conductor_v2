@@ -141,6 +141,9 @@ class AuthProvider extends ChangeNotifier {
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
       _registrarToken();
+      // Trae el estatus REAL del servidor (correo, telefono, documentacion)
+      // para no volver a pedir verificaciones ya realizadas.
+      await refreshPerfil();
       return true;
     }
     _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Error al iniciar sesión');

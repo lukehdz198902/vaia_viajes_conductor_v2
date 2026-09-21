@@ -3,8 +3,19 @@ import 'dart:io';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import '../config/api_config.dart';
 import 'logger.dart';
+
+/// Resuelve el directorio donde se escribe el estado de ubicacion. Se calcula
+/// en el propio isolate del servicio (no depende de datos externos).
+Future<String> dirEstadoUbicacion() async {
+  try {
+    final dir = await getApplicationSupportDirectory();
+    if (dir.path.isNotEmpty) return dir.path;
+  } catch (_) {}
+  return await FlutterForegroundTask.getData<String>(key: 'dirDatos') ?? '';
+}
 
 /// Archivo donde el servicio escribe el estado de la ultima ubicacion. La
 /// burbuja nativa lo lee cada segundo para mostrar la fecha/hora aunque la
@@ -77,8 +88,7 @@ class _ConductorTaskHandler extends TaskHandler {
         final ahora = DateTime.now();
         await FlutterForegroundTask.saveData(key: 'ultimaUbicacion', value: ahora.toIso8601String());
         // Refleja la hora en la burbuja nativa aunque la app este minimizada.
-        final dir = await FlutterForegroundTask.getData<String>(key: 'dirDatos') ?? '';
-        await escribirEstadoUbicacion(dir, true, ahora);
+        await escribirEstadoUbicacion(await dirEstadoUbicacion(), true, ahora);
         final hh = '${ahora.hour.toString().padLeft(2, '0')}:'
             '${ahora.minute.toString().padLeft(2, '0')}:'
             '${ahora.second.toString().padLeft(2, '0')}';
