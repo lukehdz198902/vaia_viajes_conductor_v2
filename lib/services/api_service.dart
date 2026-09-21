@@ -276,6 +276,12 @@ class ApiService {
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
 
+  /// Recupera la contrasena validando el codigo enviado por WhatsApp.
+  Future<ApiResponse> recuperarPassword(String telefono, String codigo, String passNuevo) =>
+      post('${ApiConfig.conductorEndpoint}/RecuperarPassword', {
+        'telefono': telefono, 'codigo': codigo, 'passNuevo': passNuevo,
+      });
+
   /// Configuracion vigente que consume la app (intervalo de ubicacion, etc.).
   Future<ApiResponse> obtenerConfiguracionApp() =>
       get('${ApiConfig.conductorEndpoint}/ObtenerConfiguracionApp');

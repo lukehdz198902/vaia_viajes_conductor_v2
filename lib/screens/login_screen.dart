@@ -4,6 +4,7 @@ import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/vaia_widgets.dart';
 import 'register_screen.dart';
+import 'recover_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -110,7 +111,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         validator: (v) =>
                             v == null || v.isEmpty ? 'Ingrese su contrasena' : null,
                       ),
-                      const SizedBox(height: 24),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RecoverPasswordScreen()),
+                          ),
+                          child: const Text('Olvide mi contrasena'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       VaiaPrimaryButton(
                         label: 'Iniciar sesion',
                         icon: Icons.arrow_forward_rounded,
