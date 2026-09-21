@@ -190,8 +190,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final ride = _ride;
     if (ride == null) return;
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // La app pasa a segundo plano: el servicio en primer plano toma el
+      // reporte de ubicacion y la burbuja se muestra automaticamente.
+      ride.marcarPrimerPlano(false);
       ride.mostrarBurbuja();
     } else if (state == AppLifecycleState.resumed) {
+      ride.marcarPrimerPlano(true);
       ride.ocultarBurbuja();
     }
   }

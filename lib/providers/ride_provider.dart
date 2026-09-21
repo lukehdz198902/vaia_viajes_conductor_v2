@@ -43,6 +43,8 @@ class RideProvider extends ChangeNotifier {
   final List<ParadaModel> _paradas = [];
   bool _conectadoWs = false;
   bool _permisoUbicacionOk = false;
+  int _intervaloSegundos = 15;
+  bool _enPrimerPlano = true;
   StreamSubscription? _subEventos;
   StreamSubscription? _subConexion;
 
@@ -177,6 +179,9 @@ class RideProvider extends ChangeNotifier {
     _idConductorPresencia = conductorId;
     _latidoTimer?.cancel();
 
+    // Configuracion vigente (intervalo de ubicacion) desde el portal.
+    _cargarConfiguracion();
+
     // Solicita el permiso de ubicacion y comienza a reportar de inmediato.
     asegurarPermisoUbicacion().then((_) => _reportarPresencia());
     _signalr.latido();
@@ -184,13 +189,49 @@ class RideProvider extends ChangeNotifier {
     _reiniciarTimerPresencia();
     _latidoTimer = Timer.periodic(const Duration(seconds: 30), (_) => _signalr.latido());
 
-    // Servicio en primer plano: mantiene la app viva al minimizar/cerrar
-    // y muestra el estado de conexion y la ultima ubicacion enviada.
+    // Servicio en primer plano: mantiene el reporte de ubicacion incluso con
+    // la app en segundo plano o minimizada.
     ForegroundServiceManager.iniciar(
       titulo: 'Vaia Conductor - En servicio',
       texto: _textoNotificacion(),
+      intervaloSegundos: _intervaloSegundos,
+      idConductor: conductorId,
     );
+    ForegroundServiceManager.marcarPrimerPlano(_enPrimerPlano);
     _asegurarPermisoBurbuja();
+  }
+
+  /// Lee el intervalo de envio de ubicacion configurado en el portal.
+  Future<void> _cargarConfiguracion() async {
+    try {
+      final r = await _api.obtenerConfiguracionApp();
+      for (final e in (r.list ?? [])) {
+        final m = e as Map;
+        if (m['claveconfiguracion']?.toString() == 'INTERVALO_ENVIO_UBICACION_SEGUNDOS') {
+          final v = int.tryParse(m['valorconfiguracion']?.toString() ?? '');
+          if (v != null && v >= 5 && v <= 120) {
+            _intervaloSegundos = v;
+            _reiniciarTimerPresencia();
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Informa si la app esta visible. El servicio en primer plano reporta la
+  /// ubicacion solo cuando la app pasa a segundo plano.
+  void marcarPrimerPlano(bool enPrimerPlano) {
+    _enPrimerPlano = enPrimerPlano;
+    ForegroundServiceManager.marcarPrimerPlano(enPrimerPlano);
+    if (enPrimerPlano) {
+      // Al volver, refresca la hora del ultimo envio hecho en segundo plano.
+      ForegroundServiceManager.ultimaUbicacion().then((d) {
+        if (d != null) {
+          _ultimaUbicacion = d;
+          notifyListeners();
+        }
+      });
+    }
   }
 
   /// Solicita el permiso de overlay. La burbuja NO se muestra al conectar:
@@ -206,6 +247,10 @@ class RideProvider extends ChangeNotifier {
   Future<void> mostrarBurbuja() async {
     if (_idConductorPresencia <= 0) return;
     try {
+      if (!await BubbleOverlay.tienePermiso()) {
+        await BubbleOverlay.solicitarPermiso();
+        return;
+      }
       await BubbleOverlay.mostrar(conectado: _conectadoWs, fecha: _fechaActual());
     } catch (_) {}
   }
@@ -218,11 +263,11 @@ class RideProvider extends ChangeNotifier {
   }
 
   /// Ajusta la frecuencia de reporte segun el estado: en viaje 12 s
-  /// (seguimiento preciso), disponible 30 s (menor carga al servidor).
+  /// (seguimiento preciso), disponible el intervalo configurado (15 s).
   void _reiniciarTimerPresencia() {
     _presenceTimer?.cancel();
     if (_idConductorPresencia <= 0) return;
-    final segundos = _idServicioGps > 0 ? 12 : 30;
+    final segundos = _idServicioGps > 0 ? 12 : _intervaloSegundos;
     _presenceTimer = Timer.periodic(Duration(seconds: segundos), (_) => _reportarPresencia());
   }
 

@@ -276,6 +276,10 @@ class ApiService {
   Future<ApiResponse> listarUnidades(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ListarUnidades?idConductor=$idConductor');
 
+  /// Configuracion vigente que consume la app (intervalo de ubicacion, etc.).
+  Future<ApiResponse> obtenerConfiguracionApp() =>
+      get('${ApiConfig.conductorEndpoint}/ObtenerConfiguracionApp');
+
   /// Zonas con mayor demanda historica (origenes de servicios) para el mapa.
   Future<ApiResponse> zonasDemanda({int dias = 30}) =>
       get('${ApiConfig.conductorEndpoint}/ZonasDemanda?dias=$dias');
