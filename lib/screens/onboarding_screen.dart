@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../config/policies.dart';
 import '../config/theme.dart';
+import '../services/biometric_service.dart';
 import '../services/permission_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/vaia_widgets.dart';
@@ -21,8 +22,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _pagina = 0;
   bool _terminos = false;
   bool _procesando = false;
+  bool _biometriaDisponible = false;
 
-  int get _total => _permisos.length + 1;
+  int get _total => _permisos.length + 2;
+
+  @override
+  void initState() {
+    super.initState();
+    BiometricService.disponible().then((d) {
+      if (mounted) setState(() => _biometriaDisponible = d);
+    });
+  }
+
+  /// Solicita la biometria y, si es exitosa, la deja habilitada.
+  Future<void> _activarBiometria() async {
+    setState(() => _procesando = true);
+    final ok = await BiometricService.autenticar(motivo: 'Activa la seguridad biometrica de Vaia Conductor');
+    if (!mounted) return;
+    setState(() => _procesando = false);
+    if (ok) {
+      await _storage.setBiometriaHabilitada(true);
+      if (mounted) _siguiente();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo activar la biometria')),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -73,6 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (i) => setState(() => _pagina = i),
                 children: [
                   ..._permisos.map(_paginaPermiso),
+                  _paginaBiometria(),
                   _paginaTerminos(),
                 ],
               ),
@@ -174,6 +201,86 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             onPressed: _procesando ? null : _siguiente,
             child: Text(def.obligatorio ? 'Continuar' : 'Ahora no'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _puntoBiometria(String texto) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.check_circle_rounded, size: 18, color: VaiaColors.primary),
+            const SizedBox(width: 10),
+            Expanded(child: Text(texto, style: const TextStyle(fontSize: 13, color: VaiaColors.textSecondary))),
+          ],
+        ),
+      );
+
+  Widget _paginaBiometria() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
+          Center(
+            child: Container(
+              width: 108,
+              height: 108,
+              decoration: BoxDecoration(
+                color: VaiaColors.primary.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.3), width: 2),
+              ),
+              child: const Icon(Icons.fingerprint_rounded, size: 54, color: VaiaColors.primary),
+            ),
+          ),
+          const SizedBox(height: 26),
+          const Text('Seguridad biometrica',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 23, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
+          const SizedBox(height: 10),
+          Text(
+            _biometriaDisponible
+                ? 'Protege tu cuenta: al abrir la app te pediremos tu huella o rostro.'
+                : 'Tu dispositivo no tiene biometria configurada. Podras activarla mas tarde desde Configuracion.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: VaiaColors.textSecondary, height: 1.4),
+          ),
+          const SizedBox(height: 22),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: VaiaColors.surface,
+              borderRadius: BorderRadius.circular(VaiaRadius.lg),
+              border: Border.all(color: VaiaColors.border),
+            ),
+            child: Column(
+              children: [
+                _puntoBiometria('Solo tu puedes desbloquear la app'),
+                _puntoBiometria('Nadie mas vera tu informacion'),
+                _puntoBiometria('Puedes desactivarla en Configuracion'),
+              ],
+            ),
+          ),
+          const Spacer(),
+          if (_biometriaDisponible) ...[
+            VaiaPrimaryButton(
+              label: 'Activar biometria',
+              icon: Icons.fingerprint_rounded,
+              loading: _procesando,
+              onPressed: _procesando ? null : _activarBiometria,
+            ),
+            const SizedBox(height: 6),
+            TextButton(onPressed: _procesando ? null : _siguiente, child: const Text('Ahora no')),
+          ] else
+            VaiaPrimaryButton(
+              label: 'Continuar',
+              icon: Icons.arrow_forward_rounded,
+              onPressed: _siguiente,
+            ),
         ],
       ),
     );

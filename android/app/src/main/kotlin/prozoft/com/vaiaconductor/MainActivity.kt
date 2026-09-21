@@ -4,11 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// FlutterFragmentActivity es requerido por local_auth para la biometria.
+class MainActivity : FlutterFragmentActivity() {
     private val channelName = "vaia/bubble"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
