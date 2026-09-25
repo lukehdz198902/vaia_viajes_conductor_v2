@@ -90,6 +90,11 @@ class RideProvider extends ChangeNotifier {
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ SIGNALR Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
+  /// Detecta si el payload del WebSocket trae el snapshot completo del servicio.
+  bool _esSnapshot(Map<String, dynamic> data) =>
+      (data['id'] != null || data['idservicio'] != null) &&
+      (data['direccionorigen'] != null || data['idpasajero'] != null || data['idconductor'] != null);
+
   void _onRealtimeEvent(RealtimeEvent event) {
     switch (event.tipo) {
       case 'NuevoServicio':
@@ -127,10 +132,11 @@ class RideProvider extends ChangeNotifier {
         final estatus = event.data['estatus']?.toString();
         if (estatus != null && _activeRide != null &&
             estatus != 'ParadaAgregada' && estatus != 'ParadaCompletada') {
-          _activeRide = Servicio.fromJson({
-            ..._activeRide!.toMap(),
-            'servicioEstatus': estatus,
-          });
+          // Si el servidor envia el snapshot completo, se reemplaza todo el
+          // servicio (datos del pasajero, costos, unidad); si no, solo estatus.
+          _activeRide = _esSnapshot(event.data)
+              ? Servicio.fromJson({..._activeRide!.raw, ...event.data})
+              : _activeRide!.copyWith({'estatus': estatus});
           notifyListeners();
         }
         break;
@@ -162,6 +168,9 @@ class RideProvider extends ChangeNotifier {
   Future<void> revisarServicioActivo(int conductorId) async {
     await _checkActiveRide(conductorId);
   }
+
+  /// Fuerza una actualizacion del servicio activo (respaldo del WebSocket).
+  Future<void> refrescarServicioActivo(int conductorId) => _checkActiveRide(conductorId);
 
   Future<void> _checkActiveRide(int conductorId) async {
     final resp = await _api.obtenerServicioActivo(conductorId);
