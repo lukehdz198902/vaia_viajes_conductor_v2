@@ -45,10 +45,17 @@ class AuthProvider extends ChangeNotifier {
       final resp = await _api.obtenerPerfil(_conductor!.id);
       if (resp.ok && resp.data != null) {
         _conductor = Conductor.fromJson(resp.data!);
+        _sincronizarOnline();
         await _storage.saveUserData(_conductor!.toMap());
         notifyListeners();
+        _signalr.marcarDisponibilidad(_isOnline);
       }
     } catch (_) {}
+  }
+
+  /// Toma el estatus real del servidor para saber si esta Disponible.
+  void _sincronizarOnline() {
+    _isOnline = _conductor?.conductorEstatus == 'Disponible';
   }
 
   // ─── VERIFICACION DE TELEFONO / CORREO ───────────────────────
@@ -183,6 +190,9 @@ class AuthProvider extends ChangeNotifier {
     if (resp.ok) {
       _isOnline = !_isOnline;
       notifyListeners();
+      // Comunica la disponibilidad al servidor: al desconectarse sale del grupo
+      // de disponibles y deja de recibir ofertas de servicio.
+      _signalr.marcarDisponibilidad(_isOnline);
       return true;
     }
     _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'No se pudo cambiar el estatus');

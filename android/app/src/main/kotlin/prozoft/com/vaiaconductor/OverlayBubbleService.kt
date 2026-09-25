@@ -111,7 +111,7 @@ class OverlayBubbleService : Service() {
             }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#94A3B8"))
+                setColor(Color.parseColor("#EF4444"))
                 setStroke(dp(2), Color.WHITE)
             }
         }
@@ -210,7 +210,7 @@ class OverlayBubbleService : Service() {
         val archivo = leerArchivoEstado()
         val conectado = archivo?.first ?: BubbleState.conectado
         val fecha = archivo?.second ?: BubbleState.fecha
-        val color = if (conectado) "#10B981" else "#94A3B8"
+        val color = if (conectado) "#10B981" else "#EF4444"
         (dotView?.background as? GradientDrawable)?.setColor(Color.parseColor(color))
         timeView?.text = fecha
     }

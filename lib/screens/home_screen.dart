@@ -25,6 +25,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RideProvider? _ride;
+  AuthProvider? _authRef;
   final _api = ApiService();
   Map<String, dynamic>? _resumen;
   Timer? _resumenTimer;
@@ -109,20 +110,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
       final maxD = demanda.fold<int>(1, (m, e) => totalDe(e) > m ? totalDe(e) : m);
       final circles = <Circle>{};
+      // Mapa de calor tipo termico: capas concentricas muy tenues que se suman
+      // hacia el centro. Entre mas servicios historicos tenga la zona, mas
+      // notoria se vuelve (nunca un circulo solido).
+      const capas = 5;
       for (var i = 0; i < demanda.length; i++) {
         final e = demanda[i];
         final lat = latDe(e);
         final lng = lngDe(e);
         if (lat == null || lng == null) continue;
-        final ratio = totalDe(e) / maxD;
-        circles.add(Circle(
-          circleId: CircleId('dem_$i'),
-          center: LatLng(lat, lng),
-          radius: 250 + ratio * 900,
-          fillColor: VaiaColors.danger.withValues(alpha: 0.16 + ratio * 0.26),
-          strokeColor: VaiaColors.danger.withValues(alpha: 0.55),
-          strokeWidth: 2,
-        ));
+        final ratio = (totalDe(e) / maxD).clamp(0.0, 1.0);
+        final radioMax = 320 + ratio * 820;
+        final alphaCapa = 0.03 + ratio * 0.04;
+        for (var k = 0; k < capas; k++) {
+          final frac = 1.0 - k * (0.85 / capas); // 1.00 .. 0.32
+          final calor = (1 - frac).clamp(0.0, 1.0);
+          final color = Color.lerp(VaiaColors.accent, VaiaColors.danger, calor)!;
+          circles.add(Circle(
+            circleId: CircleId('dem_${i}_$k'),
+            center: LatLng(lat, lng),
+            radius: radioMax * frac,
+            fillColor: color.withValues(alpha: alphaCapa),
+            strokeWidth: 0,
+          ));
+        }
       }
 
       final markers = <Marker>{};
@@ -176,6 +187,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final auth = context.read<AuthProvider>();
       final ride = context.read<RideProvider>();
       _ride = ride;
+      _authRef = auth;
+      auth.addListener(_onAuthChanged);
+      ride.setOnline(auth.isOnline);
       if (!auth.isLoggedIn) return;
       ride.startPolling(auth.userId);
       ride.iniciarPresencia(auth.userId);
@@ -334,8 +348,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   @override
+  void _onAuthChanged() {
+    if (!mounted) return;
+    context.read<RideProvider>().setOnline(context.read<AuthProvider>().isOnline);
+  }
+
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _authRef?.removeListener(_onAuthChanged);
     _posSub?.cancel();
     _gpsTimer?.cancel();
     _batteryTimer?.cancel();

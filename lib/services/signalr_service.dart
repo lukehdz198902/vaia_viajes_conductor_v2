@@ -143,6 +143,16 @@ class SignalRService {
     } catch (_) {}
   }
 
+  /// Informa al servidor si el conductor esta Disponible. Solo los disponibles
+  /// reciben ofertas de servicio (aunque la app siga abierta en segundo plano).
+  Future<void> marcarDisponibilidad(bool disponible) async {
+    try {
+      await _servicioConn?.invoke('MarcarDisponibilidad', args: [disponible]);
+    } catch (e) {
+      Logger.e('SignalR', 'Error marcando disponibilidad: $e');
+    }
+  }
+
   // ─── CHAT CON PASAJERO ───────────────────────────────────────
 
   Future<void> _conectarChat() async {

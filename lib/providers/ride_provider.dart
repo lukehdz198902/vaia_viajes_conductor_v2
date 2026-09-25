@@ -44,6 +44,7 @@ class RideProvider extends ChangeNotifier {
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
   bool _conectadoWs = false;
+  bool _online = false;
   bool _permisoUbicacionOk = false;
   bool _permisoSegundoPlano = true;
   int _intervaloSegundos = 15;
@@ -85,6 +86,7 @@ class RideProvider extends ChangeNotifier {
   List<Servicio> get history => _history;
   List<ParadaModel> get paradas => _paradas;
   bool get conectadoWs => _conectadoWs;
+  bool get online => _online;
   double? get costoEnCurso => _costoEnCurso;
   DateTime? get ultimaUbicacion => _ultimaUbicacion;
 
@@ -99,6 +101,8 @@ class RideProvider extends ChangeNotifier {
     switch (event.tipo) {
       case 'NuevoServicio':
       case 'ServicioAsignado':
+        // Si el conductor esta desconectado, se ignoran las ofertas.
+        if (!_online) break;
         // Solicitud entrante para este conductor
         final idServicio = _toInt(event.data['idServicio'] ?? event.data['idservicio']);
         if (idServicio > 0 && (_activeRide == null || _activeRide!.id != idServicio)) {
@@ -265,7 +269,7 @@ class RideProvider extends ChangeNotifier {
   void marcarPrimerPlano(bool enPrimerPlano) {
     _enPrimerPlano = enPrimerPlano;
     ForegroundServiceManager.marcarPrimerPlano(enPrimerPlano);
-    escribirEstadoUbicacion(_dirDatos, _conectadoWs, _ultimaUbicacion);
+    escribirEstadoUbicacion(_dirDatos, _online && _conectadoWs, _ultimaUbicacion);
     if (enPrimerPlano) {
       // Al volver, refresca la hora del ultimo envio hecho en segundo plano.
       ForegroundServiceManager.ultimaUbicacion().then((d) {
@@ -275,6 +279,20 @@ class RideProvider extends ChangeNotifier {
         }
       });
     }
+  }
+
+  /// Sincroniza si el conductor esta Disponible. Se usa para no mostrar ofertas
+  /// ni pintar en verde la burbuja cuando esta desconectado.
+  void setOnline(bool value) {
+    if (_online == value) return;
+    _online = value;
+    if (!_online) {
+      _servicioOfrecido = null;
+      _hasNewRequest = false;
+    }
+    escribirEstadoUbicacion(_dirDatos, _online && _conectadoWs, _ultimaUbicacion);
+    _actualizarNotificacion();
+    notifyListeners();
   }
 
   /// Solicita el permiso de overlay. La burbuja NO se muestra al conectar:
@@ -294,7 +312,7 @@ class RideProvider extends ChangeNotifier {
         await BubbleOverlay.solicitarPermiso();
         return;
       }
-      await BubbleOverlay.mostrar(conectado: _conectadoWs, fecha: _fechaActual());
+      await BubbleOverlay.mostrar(conectado: _online && _conectadoWs, fecha: _fechaActual());
     } catch (_) {}
   }
 
@@ -344,7 +362,7 @@ class RideProvider extends ChangeNotifier {
             _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
       }
       _ultimaUbicacion = DateTime.now();
-      dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, true, _ultimaUbicacion));
+      dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, _online && _conectadoWs, _ultimaUbicacion));
       _actualizarNotificacion();
       // Refresca la hora de "ultima ubicacion enviada" en la pantalla.
       notifyListeners();
@@ -381,7 +399,7 @@ class RideProvider extends ChangeNotifier {
       texto: _textoNotificacion(),
     );
     // Actualiza la burbuja flotante (solo si ya esta visible)
-    BubbleOverlay.actualizar(conectado: _conectadoWs, fecha: _fechaActual());
+    BubbleOverlay.actualizar(conectado: _online && _conectadoWs, fecha: _fechaActual());
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ TAXIMETRO Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
