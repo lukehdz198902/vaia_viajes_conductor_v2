@@ -630,12 +630,20 @@ class RideProvider extends ChangeNotifier {
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ HISTORIAL Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-  Future<void> loadHistory(int conductorId) async {
+  Map<String, dynamic>? _historialResumen;
+  Map<String, dynamic>? get historialResumen => _historialResumen;
+
+  Future<void> loadHistory(int conductorId, {DateTime? fi, DateTime? ff, int tamano = 100}) async {
     _loading = true; notifyListeners();
-    final resp = await _api.historialViajes(conductorId);
-    if (resp.ok && resp.list != null) {
-      _history = resp.list!.map((e) => Servicio.fromJson(Map<String, dynamic>.from(e as Map))).toList();
-    }
+    try {
+      final resp = await _api.historialViajes(conductorId, tamano: tamano, fi: fi, ff: ff);
+      _history = [];
+      if (resp.ok && resp.list != null) {
+        _history = resp.list!.map((e) => Servicio.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+      }
+      final rr = await _api.historialResumen(conductorId, fi: fi, ff: ff);
+      if (rr.ok && rr.data != null) _historialResumen = rr.data;
+    } catch (_) {}
     _loading = false; notifyListeners();
   }
 

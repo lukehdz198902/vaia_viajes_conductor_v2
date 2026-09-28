@@ -29,6 +29,8 @@ class Servicio {
   final double? costoEstimado;
   final double? costoEnCurso;
   final double? costoFinal;
+  final double? gananciaConductor;
+  final double? comisionAplicada;
 
   final String? tipoViaje;
   final String? tipoPago;
@@ -89,6 +91,8 @@ class Servicio {
     this.costoEstimado,
     this.costoEnCurso,
     this.costoFinal,
+    this.gananciaConductor,
+    this.comisionAplicada,
     this.tipoViaje,
     this.tipoPago,
     this.codigoInicio,
@@ -182,6 +186,8 @@ class Servicio {
       costoEstimado: _safeDouble(json['costoestimado']),
       costoEnCurso: _safeDouble(json['costoencurso']),
       costoFinal: _safeDouble(json['costofinal']),
+      gananciaConductor: _safeDouble(json['gananciaconductor']),
+      comisionAplicada: _safeDouble(json['comisionaplicada']),
       tipoViaje: json['tipoviaje']?.toString(),
       tipoPago: json['tipopago']?.toString(),
       codigoInicio: json['codigoinicio']?.toString(),

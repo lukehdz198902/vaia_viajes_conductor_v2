@@ -307,8 +307,27 @@ class ApiService {
         'idConductor': idConductor, 'idUnidad': idUnidad,
       });
 
-  Future<ApiResponse> historialViajes(int idConductor, {int pagina = 1, int tamano = 20}) =>
-      get('${ApiConfig.conductorEndpoint}/HistorialViajes?idConductor=$idConductor&pagina=$pagina&tamano=$tamano');
+  String _rango(DateTime? fi, DateTime? ff) {
+    final b = StringBuffer();
+    if (fi != null) b.write('&fi=${Uri.encodeComponent(fi.toIso8601String())}');
+    if (ff != null) b.write('&ff=${Uri.encodeComponent(ff.toIso8601String())}');
+    return b.toString();
+  }
+
+  Future<ApiResponse> historialViajes(int idConductor, {int pagina = 1, int tamano = 20, DateTime? fi, DateTime? ff}) =>
+      get('${ApiConfig.conductorEndpoint}/HistorialViajes?idConductor=$idConductor&pagina=$pagina&tamano=$tamano${_rango(fi, ff)}');
+
+  Future<ApiResponse> historialResumen(int idConductor, {DateTime? fi, DateTime? ff}) =>
+      get('${ApiConfig.conductorEndpoint}/HistorialResumen?idConductor=$idConductor${_rango(fi, ff)}');
+
+  Future<ApiResponse> gananciasResumen(int idConductor, {DateTime? fi, DateTime? ff}) =>
+      get('${ApiConfig.conductorEndpoint}/GananciasResumen?idConductor=$idConductor${_rango(fi, ff)}');
+
+  Future<ApiResponse> gananciasPorPago(int idConductor, {DateTime? fi, DateTime? ff}) =>
+      get('${ApiConfig.conductorEndpoint}/GananciasPorPago?idConductor=$idConductor${_rango(fi, ff)}');
+
+  Future<ApiResponse> gananciasServicios(int idConductor, {DateTime? fi, DateTime? ff}) =>
+      get('${ApiConfig.conductorEndpoint}/GananciasServicios?idConductor=$idConductor${_rango(fi, ff)}');
 
   Future<ApiResponse> detalleViaje(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/DetalleViaje?idServicio=$idServicio&idConductor=$idConductor');
