@@ -578,15 +578,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           _iconAction(context, Icons.support_agent_rounded, () {
+            // El soporte esta disponible siempre (con o sin servicio activo).
             final s = context.read<RideProvider>().activeRide;
-            if (s != null) {
-              Navigator.pushNamed(context, '/support_chat', arguments: {'idServicio': s.id});
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('El soporte esta disponible durante un servicio activo'),
-                backgroundColor: VaiaColors.warning,
-              ));
-            }
+            Navigator.pushNamed(context, '/support_chat', arguments: {'idServicio': s?.id});
           }),
           _iconAction(context, Icons.notifications_outlined, () => Navigator.pushNamed(context, '/notifications')),
           _iconAction(context, Icons.picture_in_picture_alt_rounded, () async {

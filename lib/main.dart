@@ -107,9 +107,9 @@ class VaiaViajesApp extends StatelessWidget {
           case '/rating':
             page = RatingScreen(idServicio: (args['servicioId'] as num?)?.toInt());
           case '/support_chat':
-            page = SupportChatScreen(
-              idServicio: args['idServicio'] ?? 0,
-              idSolicitudExistente: args['idSolicitudExistente'],
+        page = SupportChatScreen(
+            idServicio: args['idServicio'],
+            idSolicitudExistente: args['idSolicitudExistente'],
             );
           default:
             page = const SplashScreen();

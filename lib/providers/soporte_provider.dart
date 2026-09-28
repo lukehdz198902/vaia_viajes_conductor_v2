@@ -31,6 +31,19 @@ class SoporteProvider extends ChangeNotifier {
   bool get enviando => _enviando;
   String? get error => _error;
 
+  /// Obtiene (o crea) el canal unico de soporte del conductor. No requiere un
+  /// servicio activo: el conductor siempre puede abrir soporte en linea.
+  Future<int?> canalActivo() async {
+    try {
+      final res = await _api.canalSoporteActivo(_auth.userId);
+      if (res.ok && res.data != null) {
+        final id = _toInt(res.data!['id']);
+        if (id > 0) return id;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   void _onEvent(RealtimeEvent event) {
     if (event.tipo == 'NuevoMensajeSoporte') {
       final idSol = _toInt(event.data['idSolicitud']);

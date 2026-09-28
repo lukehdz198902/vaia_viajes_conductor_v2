@@ -391,6 +391,23 @@ class ApiService {
   Future<ApiResponse> listarMensajes(int idServicio) =>
       get('/Servicio/ListarMensajes?idServicio=$idServicio');
 
+  // ─── NOTIFICACIONES ──────────────────────────────────────────
+  Future<ApiResponse> notificaciones(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/Notificaciones?idConductor=$idConductor');
+
+  Future<ApiResponse> notificacionesNoLeidas(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/NotificacionesNoLeidas?idConductor=$idConductor');
+
+  Future<ApiResponse> marcarNotificacionLeida(int idConductor, int id) =>
+      post('${ApiConfig.conductorEndpoint}/MarcarNotificacionLeida', {'idConductor': idConductor, 'id': id});
+
+  Future<ApiResponse> marcarNotificacionesLeidas(int idConductor) =>
+      post('${ApiConfig.conductorEndpoint}/MarcarNotificacionesLeidas', {'idConductor': idConductor});
+
+  // ─── SOPORTE ─────────────────────────────────────────────────
+  Future<ApiResponse> canalSoporteActivo(int idConductor) =>
+      get('/Soporte/CanalActivo?tipoSolicitante=conductor&idConductor=$idConductor');
+
   Future<ApiResponse> completarParada(int idParada, int idConductor) =>
       post('/Servicio/CompletarParada', {'idParada': idParada, 'idConductor': idConductor});
 
