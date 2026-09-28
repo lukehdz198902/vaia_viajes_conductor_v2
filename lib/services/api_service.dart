@@ -388,6 +388,9 @@ class ApiService {
   Future<ApiResponse> listarParadas(int idServicio) =>
       get('/Servicio/ListarParadas?idservicio=$idServicio');
 
+  Future<ApiResponse> listarMensajes(int idServicio) =>
+      get('/Servicio/ListarMensajes?idServicio=$idServicio');
+
   Future<ApiResponse> completarParada(int idParada, int idConductor) =>
       post('/Servicio/CompletarParada', {'idParada': idParada, 'idConductor': idConductor});
 
