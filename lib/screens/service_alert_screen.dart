@@ -6,6 +6,7 @@ import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/directions_service.dart';
+import '../services/marker_icons.dart';
 import '../widgets/vaia_widgets.dart';
 
 /// Tarjeta de servicio entrante: ocupa la mitad inferior de la pantalla, es
@@ -34,6 +35,7 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
   @override
   void initState() {
     super.initState();
+    MarkerIcons.cargar().then((_) { if (mounted) _prepararMapa(); });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final ride = context.read<RideProvider>();
@@ -87,13 +89,15 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
         ..add(Marker(
           markerId: const MarkerId('origen'),
           position: origen,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Origen', snippet: s.direccionOrigen ?? ''),
         ))
         ..add(Marker(
           markerId: const MarkerId('destino'),
           position: destino,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Destino', snippet: s.direccionDestino ?? ''),
         ));
     });
@@ -339,12 +343,12 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
                           border: Border.all(color: VaiaColors.border),
                         ),
                         child: Column(children: [
-                          _punto(Icons.trip_origin, VaiaColors.onlineGreen, 'Origen', s.direccionOrigen ?? '-'),
+                          _punto(const MarkerIcon(origin: true), 'Origen', s.direccionOrigen ?? '-'),
                           Padding(
                             padding: const EdgeInsets.only(left: 11),
                             child: Container(width: 2, height: 18, color: VaiaColors.border),
                           ),
-                          _punto(Icons.location_on_rounded, VaiaColors.danger, 'Destino', s.direccionDestino ?? '-'),
+                          _punto(const MarkerIcon(origin: false), 'Destino', s.direccionDestino ?? '-'),
                         ]),
                       ),
                       const SizedBox(height: 14),
@@ -394,9 +398,9 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
     );
   }
 
-  Widget _punto(IconData icono, Color color, String label, String valor) {
+  Widget _punto(Widget icono, String label, String valor) {
     return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icono, size: 16, color: color),
+      SizedBox(width: 16, height: 16, child: Center(child: icono)),
       const SizedBox(width: 10),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

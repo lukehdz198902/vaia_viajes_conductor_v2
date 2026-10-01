@@ -8,6 +8,7 @@ import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
 import '../services/directions_service.dart';
+import '../services/marker_icons.dart';
 
 /// Detalle completo de un servicio para el conductor: mapa con la ruta y las
 /// paradas, datos del pasajero, desglose de cobro/comision, conversacion y la
@@ -30,7 +31,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_loading && _servicio == null) _loadDetail();
+    if (_loading && _servicio == null) {
+      MarkerIcons.cargar();
+      _loadDetail();
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -80,7 +84,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       Marker(
         markerId: const MarkerId('origin'),
         position: LatLng(latO, lngO),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Origen', snippet: s.direccionOrigen ?? ''),
       ),
     };
@@ -88,7 +93,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       markers.add(Marker(
         markerId: const MarkerId('destination'),
         position: LatLng(latD, lngD),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+        anchor: const Offset(0.5, 0.5),
         infoWindow: InfoWindow(title: 'Destino', snippet: s.direccionDestino ?? ''),
       ));
     }
@@ -248,17 +254,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           children: [
             _titulo(Icons.route_rounded, 'Recorrido'),
             const SizedBox(height: 12),
-            _dirRow(Icons.trip_origin, VaiaColors.onlineGreen, 'Origen', s.direccionOrigen ?? '-'),
+            _dirRow(const MarkerIcon(origin: true), 'Origen', s.direccionOrigen ?? '-'),
             Padding(padding: const EdgeInsets.only(left: 5), child: Container(width: 2, height: 16, color: VaiaColors.border)),
-            _dirRow(Icons.location_on_rounded, VaiaColors.danger, 'Destino', s.direccionDestino ?? '-'),
+            _dirRow(const MarkerIcon(origin: false), 'Destino', s.direccionDestino ?? '-'),
           ],
         ),
       );
 
-  Widget _dirRow(IconData icon, Color color, String label, String valor) => Row(
+  Widget _dirRow(Widget icon, String label, String valor) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: color),
+          SizedBox(width: 16, height: 16, child: Center(child: icon)),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

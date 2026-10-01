@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Marker de origen estilo Uber (Fase 16.2).
+  - Halo exterior turquesa translucido (efecto de onda).
+  - Circulo solido negro (cuerpo principal).
+  - Punto central turquesa solido.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Halo exterior (sombra suave) -->
+    <path
+        android:fillColor="#335EC6D1"
+        android:pathData="M24,24m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0" />
+    <!-- Halo medio -->
+    <path
+        android:fillColor="#665EC6D1"
+        android:pathData="M24,24m-17,0a17,17 0,1 1,34 0a17,17 0,1 1,-34 0" />
+    <!-- Cuerpo del marker (negro) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M24,24m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+    <!-- Punto central (turquesa) -->
+    <path
+        android:fillColor="#5EC6D1"
+        android:pathData="M24,24m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0" />
+</vector>

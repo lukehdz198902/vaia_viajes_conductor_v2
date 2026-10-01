@@ -11,6 +11,7 @@ import '../models/servicio_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/directions_service.dart';
+import '../services/marker_icons.dart';
 import '../widgets/status_timeline.dart';
 import 'report_incident_screen.dart';
 
@@ -42,6 +43,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   @override
   void initState() {
     super.initState();
+    MarkerIcons.cargar();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _rideRef = context.read<RideProvider>();
       _rideRef!.addListener(_onRideChanged);
@@ -91,13 +93,15 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
         ..add(Marker(
           markerId: const MarkerId('origen'),
           position: origen,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+          anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Origen', snippet: s.direccionOrigen ?? ''),
         ))
         ..add(Marker(
           markerId: const MarkerId('destino'),
           position: destino,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
+          anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Destino', snippet: s.direccionDestino ?? ''),
         ));
     });
@@ -658,12 +662,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     return _card(
       child: Column(
         children: [
-          _renglonRuta(Icons.trip_origin, VaiaColors.onlineGreen, 'Origen', s.direccionOrigen ?? '-', activo: !s.esEnViaje),
+          _renglonRuta(const MarkerIcon(origin: true), 'Origen', s.direccionOrigen ?? '-', activo: !s.esEnViaje),
           Padding(
             padding: const EdgeInsets.only(left: 11),
             child: Container(width: 2, height: 18, color: VaiaColors.border),
           ),
-          _renglonRuta(Icons.location_on_rounded, VaiaColors.danger, 'Destino', s.direccionDestino ?? '-', activo: s.esEnViaje),
+          _renglonRuta(const MarkerIcon(origin: false), 'Destino', s.direccionDestino ?? '-', activo: s.esEnViaje),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -680,11 +684,11 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     );
   }
 
-  Widget _renglonRuta(IconData icon, Color color, String label, String valor, {bool activo = false}) {
+  Widget _renglonRuta(Widget icon, String label, String valor, {bool activo = false}) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: color),
+        SizedBox(width: 18, height: 18, child: Center(child: icon)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

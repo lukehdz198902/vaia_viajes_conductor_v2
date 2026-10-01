@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/servicio_model.dart';
+import '../services/marker_icons.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 
@@ -242,13 +243,13 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
   Widget _ruta(Servicio s) {
     return Column(children: [
       Row(children: [
-        const Icon(Icons.trip_origin, size: 16, color: VaiaColors.onlineGreen),
+        const MarkerIcon(origin: true, size: 16),
         const SizedBox(width: 10),
         Expanded(child: Text(s.direccionOrigen ?? '-', style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]),
       const SizedBox(height: 6),
       Row(children: [
-        const Icon(Icons.location_on_rounded, size: 16, color: VaiaColors.danger),
+        const MarkerIcon(origin: false, size: 16),
         const SizedBox(width: 10),
         Expanded(child: Text(s.direccionDestino ?? '-', style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
       ]),
