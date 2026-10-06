@@ -12,6 +12,7 @@ import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
 import '../services/bubble_overlay.dart';
+import '../services/marker_icons.dart';
 import '../widgets/vaia_widgets.dart';
 import '../widgets/email_verification_sheet.dart';
 import '../widgets/onboarding_checklist.dart';
@@ -804,9 +805,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
               ),
               const SizedBox(height: 16),
-              _rideDetail(Icons.my_location_rounded, 'Origen', s?.direccionOrigen ?? '-'),
+              _rideDetail(const MarkerIcon(origin: true, size: 18), 'Origen', s?.direccionOrigen ?? '-'),
               const SizedBox(height: 10),
-              _rideDetail(Icons.location_on_rounded, 'Destino', s?.direccionDestino ?? '-'),
+              _rideDetail(const MarkerIcon(origin: false, size: 18), 'Destino', s?.direccionDestino ?? '-'),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -837,14 +838,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _rideDetail(IconData icon, String label, String value) {
+  Widget _rideDetail(Widget icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: Colors.white, size: 18),
+          child: icon,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -1030,9 +1031,9 @@ class ServiceRequestDialog extends StatelessWidget {
             if (s.pasajeroNombre != null)
               Text(s.pasajeroNombre!, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
-            _iconRow(context, Icons.my_location_rounded, 'Origen', s.direccionOrigen, VaiaColors.onlineGreen),
+            _iconRow(context, const MarkerIcon(origin: true, size: 18), 'Origen', s.direccionOrigen, VaiaColors.onlineGreen),
             const SizedBox(height: 8),
-            _iconRow(context, Icons.location_on_rounded, 'Destino', s.direccionDestino, VaiaColors.danger),
+            _iconRow(context, const MarkerIcon(origin: false, size: 18), 'Destino', s.direccionDestino, VaiaColors.danger),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -1093,14 +1094,14 @@ class ServiceRequestDialog extends StatelessWidget {
     );
   }
 
-  Widget _iconRow(BuildContext context, IconData icon, String label, String? value, Color color) {
+  Widget _iconRow(BuildContext context, Widget icon, String label, String? value, Color color) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
-          child: Icon(icon, color: color, size: 18),
+          child: icon,
         ),
         const SizedBox(width: 10),
         Expanded(

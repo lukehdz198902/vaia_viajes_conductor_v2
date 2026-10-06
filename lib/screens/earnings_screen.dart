@@ -40,13 +40,17 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   // ─── Semana ISO ───────────────────────────────────────────────
 
+  /// Numero de semana ISO-8601 (1..53). Implementacion iterativa basada en el
+  /// jueves de la semana, sin recursion (la version anterior podia entrar en
+  /// recursion infinita y provocaba un stack overflow al abrir la pantalla).
   int _isoWeek(DateTime date) {
     final d = DateTime(date.year, date.month, date.day);
-    final dayOfYear = d.difference(DateTime(d.year, 1, 1)).inDays + 1;
-    final woy = ((dayOfYear - d.weekday + 10) ~/ 7);
-    if (woy < 1) return _isoWeek(DateTime(d.year - 1, 12, 31));
-    if (woy > 52 && _isoWeek(DateTime(d.year + 1, 1, 1)) == 1) return 52;
-    return woy;
+    // Jueves de la semana ISO: lunes=1 ... domingo=7.
+    final thursday = d.add(Duration(days: 4 - d.weekday));
+    final jan1 = DateTime(thursday.year, 1, 1);
+    // Jueves de la primera semana ISO del anio.
+    final firstThursday = jan1.add(Duration(days: (4 - jan1.weekday + 7) % 7));
+    return 1 + thursday.difference(firstThursday).inDays ~/ 7;
   }
 
   DateTime _lunes(int year, int week) {
@@ -116,6 +120,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
             _selectorSemana(),
             const SizedBox(height: 14),
             _tarjetaTotal(),
+            const SizedBox(height: 14),
+            _seccion('Desglose diario (lunes a viernes)', _desgloseDiario()),
             const SizedBox(height: 14),
             _seccion('Desglose por tipo de pago', _listaPorPago()),
             const SizedBox(height: 14),
@@ -264,6 +270,70 @@ class _EarningsScreenState extends State<EarningsScreen> {
           hijo,
         ],
       ),
+    );
+  }
+
+  DateTime? _parseFecha(dynamic iso) {
+    if (iso == null) return null;
+    try {
+      return DateTime.parse(iso.toString()).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Ganancias netas por dia de la semana (indice 0 = lunes ... 4 = viernes).
+  List<double> _porDia() {
+    final tot = List<double>.filled(5, 0);
+    for (final s in _servicios) {
+      final d = _parseFecha(s['fechacreacion']);
+      if (d == null) continue;
+      final idx = d.weekday - 1;
+      if (idx >= 0 && idx < 5) tot[idx] += _d(s['gananciaconductor']);
+    }
+    return tot;
+  }
+
+  Widget _desgloseDiario() {
+    if (_cargando) return const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator()));
+    final dias = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+    final valores = _porDia();
+    final maxV = valores.fold<double>(0, (a, b) => b > a ? b : a);
+    return Column(
+      children: List.generate(5, (i) {
+        final v = valores[i];
+        final frac = maxV > 0 ? (v / maxV) : 0.0;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 68,
+                child: Text(dias[i],
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: VaiaColors.textSecondary)),
+              ),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: frac,
+                    minHeight: 10,
+                    backgroundColor: VaiaColors.bgSubtle,
+                    valueColor: const AlwaysStoppedAnimation<Color>(VaiaColors.primary),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 74,
+                child: Text(_money(v),
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 

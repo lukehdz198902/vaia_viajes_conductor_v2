@@ -221,7 +221,7 @@ class VaiaLogo extends StatelessWidget {
           height: size,
           padding: EdgeInsets.all(size * 0.12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: const Color(0xFF111111),
             borderRadius: BorderRadius.circular(size * 0.25),
             boxShadow: [
               BoxShadow(color: c.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),

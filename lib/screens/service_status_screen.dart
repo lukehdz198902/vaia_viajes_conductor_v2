@@ -473,7 +473,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
               onPressed: _isLlegando ? null : () => _llegarAlOrigen(ride, s.id, auth.userId),
               icon: _isLlegando
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.place_rounded),
+                  : const MarkerIcon(origin: true, size: 18),
               label: const Text('Llegue al origen'),
               style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
             ),
