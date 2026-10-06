@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/storage_service.dart';
 import '../services/signalr_service.dart';
 import '../services/notification_service.dart';
+import '../services/app_info.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -32,10 +33,22 @@ class AuthProvider extends ChangeNotifier {
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
       _registrarToken();
+      _registrarSesionDispositivo();
       // Refresca el perfil para traer las banderas actualizadas (correo,
       // telefono, documentacion) y no volver a pedir lo ya validado.
       await refreshPerfil();
     }
+  }
+
+  /// Registra el dispositivo actual en el servidor para que aparezca en el
+  /// listado de "Dispositivos conectados" (y pueda cerrarse remotamente).
+  Future<void> _registrarSesionDispositivo() async {
+    final token = _conductor?.uuidsesion;
+    if (_conductor == null || token == null || token.isEmpty) return;
+    try {
+      await _api.registrarSesion(_conductor!.id, token,
+          dispositivo: AppInfo.dispositivo, so: AppInfo.sistemaOperativo);
+    } catch (_) {}
   }
 
   /// Refresca el perfil desde el servidor y lo persiste localmente.
@@ -148,6 +161,7 @@ class AuthProvider extends ChangeNotifier {
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
       _registrarToken();
+      _registrarSesionDispositivo();
       // Trae el estatus REAL del servidor (correo, telefono, documentacion)
       // para no volver a pedir verificaciones ya realizadas.
       await refreshPerfil();

@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../services/storage_service.dart';
 import '../services/biometric_service.dart';
 import '../widgets/vaia_widgets.dart';
+import 'pin_screens.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -27,6 +28,15 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted) return;
     if (!onboarding) {
       Navigator.pushNamedAndRemoveUntil(context, '/onboarding', (route) => false);
+      return;
+    }
+    // Seguridad por PIN: si esta habilitado, se exige al abrir la app.
+    if (await storage.getPinHabilitado()) {
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const PinLockScreen()),
+        (route) => false,
+      );
       return;
     }
     // Seguridad biometrica: si esta habilitada, se exige al abrir la app.

@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'config/theme.dart';
 import 'services/signalr_service.dart';
 import 'services/notification_service.dart';
+import 'services/locale_provider.dart';
+import 'services/app_info.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
@@ -32,12 +36,15 @@ import 'screens/permisos_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('es', null);
+  await AppInfo.cargar();
   await NotificationService.inicializar();
   final signalr = SignalRService();
   runApp(
     MultiProvider(
       providers: [
         Provider<SignalRService>.value(value: signalr),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()..cargar()),
         ChangeNotifierProvider(create: (_) => AuthProvider(signalr)),
         ChangeNotifierProvider(create: (_) => RideProvider(signalr)),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
@@ -57,10 +64,18 @@ class VaiaViajesApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return Consumer<LocaleProvider>(
+      builder: (context, localeProv, _) => MaterialApp(
       title: 'Vaia Viajes Conductor',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      locale: localeProv.locale,
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       initialRoute: '/splash',
       onGenerateRoute: (settings) {
         Widget page;
@@ -116,6 +131,7 @@ class VaiaViajesApp extends StatelessWidget {
         }
         return MaterialPageRoute(builder: (_) => page, settings: settings);
       },
+      ),
     );
   }
 }

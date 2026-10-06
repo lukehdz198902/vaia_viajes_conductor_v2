@@ -155,6 +155,30 @@ class ApiService {
         'idConductor': idConductor, 'passActual': passActual, 'pass': passNueva,
       });
 
+  // ─── SESIONES / DISPOSITIVOS ─────────────────────────────────
+
+  Future<ApiResponse> registrarSesion(int idConductor, String token,
+      {String? dispositivo, String? so}) =>
+      post('${ApiConfig.conductorEndpoint}/RegistrarSesion', {
+        'idConductor': idConductor, 'token': token,
+        'dispositivo': dispositivo ?? '', 'so': so ?? '',
+      });
+
+  Future<ApiResponse> listarSesiones(int idConductor, {String? tokenActual}) =>
+      get('${ApiConfig.conductorEndpoint}/ListarSesiones?idConductor=$idConductor'
+          '${(tokenActual != null && tokenActual.isNotEmpty) ? '&tokenActual=${Uri.encodeComponent(tokenActual)}' : ''}');
+
+  Future<ApiResponse> cerrarSesionDispositivo(int id, int idConductor) =>
+      post('${ApiConfig.conductorEndpoint}/CerrarSesionDispositivo', {'id': id, 'idConductor': idConductor});
+
+  // ─── CONTACTO DE EMERGENCIA ──────────────────────────────────
+
+  Future<ApiResponse> obtenerContactoEmergencia(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/ObtenerContactoEmergencia?idConductor=$idConductor');
+
+  Future<ApiResponse> guardarContactoEmergencia(Map<String, dynamic> data) =>
+      post('${ApiConfig.conductorEndpoint}/GuardarContactoEmergencia', data);
+
   Future<ApiResponse> actualizarUbicacion(int idConductor, String lat, String lng) =>
       post('${ApiConfig.conductorEndpoint}/ActualizarUbicacion', {
         'idConductor': idConductor, 'lat': lat, 'lng': lng,

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/vaia_widgets.dart';
+import '../services/app_info.dart';
 import 'register_screen.dart';
 import 'recover_password_screen.dart';
 
@@ -31,8 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final ok = await auth.login(
       _accountCtrl.text.trim(),
       _passCtrl.text,
-      dispositivoInfo: 'Flutter Conductor App',
-      sistemaOperativo: 'Android',
+      dispositivoInfo: AppInfo.dispositivo,
+      sistemaOperativo: AppInfo.sistemaOperativo,
     );
     if (!mounted) return;
     if (ok) {
