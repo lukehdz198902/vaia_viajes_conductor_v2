@@ -15,6 +15,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final _api = ApiService();
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
+  String _filtro = 'todas';
 
   @override
   void initState() {
@@ -61,10 +62,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final noLeidas = _items.where((n) => !_esLeido(n)).length;
+    final visibles = _filtro == 'noleidas' ? _items.where((n) => !_esLeido(n)).toList() : _items;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notificaciones'),
+        title: Row(
+          children: [
+            const Text('Notificaciones'),
+            if (noLeidas > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: VaiaColors.danger, borderRadius: BorderRadius.circular(20)),
+                child: Text('$noLeidas', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ],
+        ),
         actions: [
           if (noLeidas > 0)
             TextButton.icon(
@@ -74,19 +88,51 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
         ],
       ),
-      body: RefreshIndicator(
-        color: VaiaColors.primary,
-        onRefresh: _load,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _items.isEmpty
-                ? _vacio()
-                : ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _tarjeta(_items[i]),
-                  ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                _chipFiltro('todas', 'Todas (${_items.length})'),
+                const SizedBox(width: 8),
+                _chipFiltro('noleidas', 'No leidas ($noLeidas)'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              color: VaiaColors.primary,
+              onRefresh: _load,
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : visibles.isEmpty
+                      ? _vacio()
+                      : ListView.separated(
+                          padding: const EdgeInsets.all(12),
+                          itemCount: visibles.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (_, i) => _tarjeta(visibles[i]),
+                        ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chipFiltro(String valor, String texto) {
+    final sel = _filtro == valor;
+    return GestureDetector(
+      onTap: () => setState(() => _filtro = valor),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: sel ? VaiaColors.primary : VaiaColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: sel ? VaiaColors.primary : VaiaColors.border),
+        ),
+        child: Text(texto, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: sel ? Colors.white : VaiaColors.textSecondary)),
       ),
     );
   }

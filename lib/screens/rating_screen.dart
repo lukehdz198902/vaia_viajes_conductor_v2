@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -96,7 +97,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                   ),
                   child: const Icon(Icons.done_all_rounded, size: 40, color: Colors.white),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 const Text('Viaje completado',
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
                 const SizedBox(height: 4),
@@ -118,9 +119,9 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                         CircleAvatar(
                           radius: 26,
                           backgroundColor: VaiaColors.primaryGhost,
-                          backgroundImage: (s.pasajeroFoto != null && s.pasajeroFoto!.isNotEmpty) ? NetworkImage(s.pasajeroFoto!) : null,
+                          backgroundImage: providerFoto(s.pasajeroFoto),
                           child: (s.pasajeroFoto == null || s.pasajeroFoto!.isEmpty)
-                              ? Text(s.pasajeroNombreCompleto.substring(0, 1).toUpperCase(),
+                              ? Text((s.pasajeroNombreCompleto.trim().isEmpty ? 'P' : s.pasajeroNombreCompleto.trim().substring(0, 1)).toUpperCase(),
                                   style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: VaiaColors.primary))
                               : null,
                         ),
@@ -152,7 +153,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                       _ruta(s),
                     ]),
                   ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
 
                 const Text('Como se porto el pasajero?',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary)),
@@ -202,7 +203,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: _comentCtrl,
                     maxLines: 2,
@@ -216,7 +217,7 @@ class _RatingScreenState extends State<RatingScreen> with SingleTickerProviderSt
                     ),
                   ),
                 ],
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   height: 52,

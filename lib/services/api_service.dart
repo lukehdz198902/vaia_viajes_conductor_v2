@@ -139,6 +139,16 @@ class ApiService {
         'sistemaoperativo': sistemaOperativo ?? '',
       });
 
+  Future<ApiResponse> iniciarSesionGoogle(String idToken,
+      {String? googleKey, String? dispositivoInfo, String? sistemaOperativo}) =>
+      post('${ApiConfig.conductorEndpoint}/IniciarSesionGoogle', {
+        'idToken': idToken,
+        'googlekey': googleKey,
+        'googlekeyso': sistemaOperativo,
+        'dispositivoinfo': dispositivoInfo ?? '',
+        'sistemaoperativo': sistemaOperativo ?? '',
+      });
+
   Future<ApiResponse> cerrarSesion(int idConductor, String uuidsesion) =>
       post('${ApiConfig.conductorEndpoint}/CerrarSesion', {
         'idConductor': idConductor, 'uuidsesion': uuidsesion,
@@ -178,6 +188,21 @@ class ApiService {
 
   Future<ApiResponse> guardarContactoEmergencia(Map<String, dynamic> data) =>
       post('${ApiConfig.conductorEndpoint}/GuardarContactoEmergencia', data);
+
+  // ─── GAMAS / PREFERENCIA DE PAGO ─────────────────────────────
+
+  Future<ApiResponse> listarGamas() => get('${ApiConfig.conductorEndpoint}/ListarGamas');
+
+  Future<ApiResponse> obtenerPreferenciaPago(int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/ObtenerPreferenciaPago?idConductor=$idConductor');
+
+  Future<ApiResponse> guardarPreferenciaPago(int idConductor, bool soloTarjeta) =>
+      post('${ApiConfig.conductorEndpoint}/GuardarPreferenciaPago',
+          {'idConductor': idConductor, 'soloTarjeta': soloTarjeta});
+
+  /// Da de baja (desactiva) la cuenta del conductor tras validar la contrasena.
+  Future<ApiResponse> darDeBaja(int idConductor, String pass) =>
+      post('${ApiConfig.conductorEndpoint}/DarDeBaja', {'idConductor': idConductor, 'pass': pass});
 
   Future<ApiResponse> actualizarUbicacion(int idConductor, String lat, String lng) =>
       post('${ApiConfig.conductorEndpoint}/ActualizarUbicacion', {
@@ -260,9 +285,9 @@ class ApiService {
       });
 
   /// Registra/actualiza el token de notificaciones push (FCM) del conductor.
-  Future<ApiResponse> actualizarToken(int idConductor, String token) =>
+  Future<ApiResponse> actualizarToken(int idConductor, String token, {String? so}) =>
       post('${ApiConfig.conductorEndpoint}/ActualizarToken', {
-        'idConductor': idConductor, 'googlekey': token,
+        'idConductor': idConductor, 'googlekey': token, 'so': so ?? '',
       });
 
   /// Resumen del dia: ganancias, servicios realizados y minutos conectado.
@@ -319,8 +344,14 @@ class ApiService {
       get('${ApiConfig.conductorEndpoint}/ObtenerConfiguracionApp');
 
   /// Zonas con mayor demanda historica (origenes de servicios) para el mapa.
-  Future<ApiResponse> zonasDemanda({int dias = 30}) =>
-      get('${ApiConfig.conductorEndpoint}/ZonasDemanda?dias=$dias');
+  Future<ApiResponse> zonasDemanda({int dias = 30, String? lat, String? lng, int radioKm = 10, int? diaSemana, int? hora}) =>
+      get('${ApiConfig.conductorEndpoint}/ZonasDemanda?dias=$dias&radioKm=$radioKm'
+          '${lat != null ? '&lat=$lat' : ''}${lng != null ? '&lng=$lng' : ''}'
+          '${diaSemana != null ? '&diaSemana=$diaSemana' : ''}${hora != null ? '&hora=$hora' : ''}');
+
+  Future<ApiResponse> demandaPorDiaHora({String? lat, String? lng, int radioKm = 10, int dias = 30}) =>
+      get('${ApiConfig.conductorEndpoint}/DemandaPorDiaHora?dias=$dias&radioKm=$radioKm'
+          '${lat != null ? '&lat=$lat' : ''}${lng != null ? '&lng=$lng' : ''}');
 
   /// Zonas donde mas se conectan los pasajeros.
   Future<ApiResponse> zonasConexion() =>

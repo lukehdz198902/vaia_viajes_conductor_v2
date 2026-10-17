@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +10,7 @@ import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
 import '../services/directions_service.dart';
 import '../services/marker_icons.dart';
+import '../widgets/ruta_timeline.dart';
 
 /// Detalle completo de un servicio para el conductor: mapa con la ruta y las
 /// paradas, datos del pasajero, desglose de cobro/comision, conversacion y la
@@ -151,7 +153,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           : s == null
               ? const Center(child: Text('No se pudo cargar el detalle'))
               : ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   children: [
                     _mapa(s),
                     const SizedBox(height: 12),
@@ -168,7 +170,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                     const SizedBox(height: 12),
                     if (_paradas.isNotEmpty) ...[_paradasCard(), const SizedBox(height: 12)],
                     _conversacion(),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
                   ],
                 ),
     );
@@ -176,7 +178,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: VaiaColors.surface,
           borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -254,9 +256,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           children: [
             _titulo(Icons.route_rounded, 'Recorrido'),
             const SizedBox(height: 12),
-            _dirRow(const MarkerIcon(origin: true), 'Origen', s.direccionOrigen ?? '-'),
-            Padding(padding: const EdgeInsets.only(left: 5), child: Container(width: 2, height: 16, color: VaiaColors.border)),
-            _dirRow(const MarkerIcon(origin: false), 'Destino', s.direccionDestino ?? '-'),
+            RutaTimeline(origen: s.direccionOrigen ?? '-', destino: s.direccionDestino ?? '-'),
           ],
         ),
       );
@@ -289,9 +289,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: VaiaColors.primaryGhost,
-                  backgroundImage: (s.pasajeroFoto != null && s.pasajeroFoto!.isNotEmpty) ? NetworkImage(s.pasajeroFoto!) : null,
+                  backgroundImage: providerFoto(s.pasajeroFoto),
                   child: (s.pasajeroFoto == null || s.pasajeroFoto!.isEmpty)
-                      ? Text(s.pasajeroNombreCompleto.substring(0, 1).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: VaiaColors.primary))
+                      ? Text((s.pasajeroNombreCompleto.trim().isEmpty ? 'P' : s.pasajeroNombreCompleto.trim().substring(0, 1)).toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: VaiaColors.primary))
                       : null,
                 ),
                 const SizedBox(width: 12),

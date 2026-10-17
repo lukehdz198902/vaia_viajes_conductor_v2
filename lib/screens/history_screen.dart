@@ -1,8 +1,9 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/servicio_model.dart';
-import '../services/marker_icons.dart';
+import '../widgets/ruta_timeline.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 
@@ -123,7 +124,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     String money(dynamic v) => '\$${(double.tryParse(v?.toString() ?? '') ?? 0).toStringAsFixed(2)}';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: VaiaColors.primaryGradient,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -202,9 +203,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: VaiaColors.primaryGhost,
-                  backgroundImage: (s.pasajeroFoto != null && s.pasajeroFoto!.isNotEmpty) ? NetworkImage(s.pasajeroFoto!) : null,
+                  backgroundImage: providerFoto(s.pasajeroFoto),
                   child: (s.pasajeroFoto == null || s.pasajeroFoto!.isEmpty)
-                      ? Text(s.pasajeroNombreCompleto.substring(0, 1).toUpperCase(),
+                      ? Text((s.pasajeroNombreCompleto.trim().isEmpty ? 'P' : s.pasajeroNombreCompleto.trim().substring(0, 1)).toUpperCase(),
                           style: const TextStyle(fontWeight: FontWeight.w900, color: VaiaColors.primary))
                       : null,
                 ),
@@ -237,12 +238,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            _ruta(const MarkerIcon(origin: true, size: 14), s.direccionOrigen ?? '-'),
-            Padding(
-              padding: const EdgeInsets.only(left: 7),
-              child: Container(width: 2, height: 12, color: VaiaColors.border),
-            ),
-            _ruta(const MarkerIcon(origin: false, size: 14), s.direccionDestino ?? '-'),
+            RutaTimeline(origen: s.direccionOrigen ?? '-', destino: s.direccionDestino ?? '-'),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -262,17 +258,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _ruta(Widget icon, String texto) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        icon,
-        const SizedBox(width: 8),
-        Expanded(child: Text(texto, style: const TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-      ],
     );
   }
 

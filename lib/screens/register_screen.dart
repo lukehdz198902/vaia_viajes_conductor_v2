@@ -139,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Center(child: VaiaLogo(size: 64)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
                 Text('Crear cuenta de conductor', style: Theme.of(context).textTheme.displaySmall, textAlign: TextAlign.center),
                 const SizedBox(height: 6),
                 Text(
@@ -147,7 +147,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _sectionLabel(context, 'Informacion personal', Icons.person_outline_rounded),
                 const SizedBox(height: 10),
                 Row(
@@ -217,7 +217,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   enabled: false,
                   textInputAction: TextInputAction.next,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 _sectionLabel(context, 'Seguridad', Icons.lock_outline_rounded),
                 const SizedBox(height: 10),
                 VaiaTextField(
@@ -255,7 +255,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     return null;
                   },
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 VaiaPrimaryButton(
                   label: 'Continuar',
                   icon: Icons.arrow_forward_rounded,
@@ -268,7 +268,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: VaiaColors.textSecondary),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
             ),
           ),

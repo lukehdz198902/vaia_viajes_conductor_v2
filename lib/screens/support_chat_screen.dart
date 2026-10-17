@@ -182,14 +182,14 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   Widget _buildError() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.support_agent, size: 56, color: VaiaColors.textMuted),
             const SizedBox(height: 12),
             Text(_error ?? 'Error', textAlign: TextAlign.center, style: const TextStyle(color: VaiaColors.textSecondary)),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             VaiaPrimaryButton(
               label: 'Reintentar',
               icon: Icons.refresh_rounded,
@@ -209,16 +209,16 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     if (soporte.mensajes.isEmpty) {
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(20)),
                 child: const Icon(Icons.chat_bubble_outline_rounded, size: 48, color: VaiaColors.primary),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text('Soporte esta en linea', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),
               Text('Cuentanos en que podemos ayudarte con tu servicio',
@@ -232,7 +232,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollAbajo());
     return ListView.builder(
       controller: _scrollCtrl,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       itemCount: soporte.mensajes.length,
       itemBuilder: (ctx, i) => _burbuja(soporte.mensajes[i]),
     );

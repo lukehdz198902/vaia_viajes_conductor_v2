@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
+import '../services/foto_util.dart';
 import '../widgets/vaia_widgets.dart';
 import '../widgets/email_verification_sheet.dart';
 import 'verify_phone_screen.dart';
@@ -19,13 +22,13 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Mi Perfil')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ─── Encabezado ─────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 gradient: VaiaColors.primaryGradient,
                 borderRadius: BorderRadius.circular(VaiaRadius.xl),
@@ -33,13 +36,10 @@ class ProfileScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  CircleAvatar(
-                    radius: 42,
-                    backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    child: Text(
-                      c?.nombre.isNotEmpty == true ? c!.nombre[0].toUpperCase() : '?',
-                      style: const TextStyle(fontSize: 34, color: Colors.white, fontWeight: FontWeight.w700),
-                    ),
+                  _FotoPerfil(
+                    foto: c?.fotoPerfil,
+                    inicial: c?.nombre.isNotEmpty == true ? c!.nombre[0].toUpperCase() : '?',
+                    habilitado: !auth.isOnline,
                   ),
                   const SizedBox(height: 12),
                   Text(c?.nombreCompleto ?? '', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Colors.white)),
@@ -59,7 +59,7 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // ─── Verificacion ───────────────────────────────────
             _seccion('Verificacion de cuenta'),
@@ -101,7 +101,7 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // ─── Informacion ────────────────────────────────────
             _seccion('Informacion'),
@@ -122,7 +122,7 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
 
             // ─── Acciones ───────────────────────────────────────
             if (auth.isOnline)
@@ -162,7 +162,7 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.settings_outlined,
               onPressed: auth.isOnline ? null : () => Navigator.pushNamed(context, '/settings'),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
           ],
         ),
       ),
@@ -229,6 +229,8 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  // El resto del archivo mantiene la estructura original.
+
   Widget _infoTile(String label, String value, {bool ok = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -242,6 +244,86 @@ class ProfileScreen extends StatelessWidget {
           ]),
         ],
       ),
+    );
+  }
+}
+
+/// Avatar del conductor con opcion de tomar/cambiar la foto de perfil.
+class _FotoPerfil extends StatefulWidget {
+  final String? foto;
+  final String inicial;
+  final bool habilitado;
+  const _FotoPerfil({required this.foto, required this.inicial, required this.habilitado});
+
+  @override
+  State<_FotoPerfil> createState() => _FotoPerfilState();
+}
+
+class _FotoPerfilState extends State<_FotoPerfil> {
+  final ImagePicker _picker = ImagePicker();
+  bool _subiendo = false;
+
+  Future<void> _cambiar() async {
+    if (!widget.habilitado || _subiendo) return;
+    final origen = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(leading: const Icon(Icons.photo_camera_outlined), title: const Text('Tomar foto'), onTap: () => Navigator.pop(ctx, ImageSource.camera)),
+          ListTile(leading: const Icon(Icons.photo_library_outlined), title: const Text('Elegir de galeria'), onTap: () => Navigator.pop(ctx, ImageSource.gallery)),
+        ]),
+      ),
+    );
+    if (origen == null) return;
+    final x = await _picker.pickImage(source: origen, imageQuality: 55, maxWidth: 720);
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    final b64 = base64Encode(bytes);
+    if (!mounted) return;
+    setState(() => _subiendo = true);
+    final auth = context.read<AuthProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    await auth.updateProfile({'fotoperfil': b64});
+    if (!mounted) return;
+    setState(() => _subiendo = false);
+    messenger.showSnackBar(const SnackBar(content: Text('Foto de perfil actualizada'), backgroundColor: VaiaColors.success));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final img = providerFoto(widget.foto);
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        CircleAvatar(
+          radius: 42,
+          backgroundColor: Colors.white.withValues(alpha: 0.25),
+          backgroundImage: img,
+          child: img == null
+              ? Text(widget.inicial, style: const TextStyle(fontSize: 34, color: Colors.white, fontWeight: FontWeight.w700))
+              : null,
+        ),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: GestureDetector(
+            onTap: _cambiar,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4)],
+              ),
+              child: _subiendo
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: VaiaColors.primary))
+                  : Icon(widget.habilitado ? Icons.photo_camera_rounded : Icons.lock_outline_rounded, size: 16, color: VaiaColors.primary),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

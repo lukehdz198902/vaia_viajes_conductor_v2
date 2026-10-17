@@ -38,6 +38,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   List<Map<String, dynamic>> _sesiones = [];
   bool _cargandoSesiones = true;
 
+  // Preferencia de pago: false = ambos, true = solo tarjeta
+  bool _soloTarjeta = false;
+
+  // Baja de cuenta
+  final _bajaPassCtrl = TextEditingController();
+  bool _dandoDeBaja = false;
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +80,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _emCorreo2Ctrl.text = m['correo2']?.toString() ?? '';
           });
         }
+      }
+    } catch (_) {}
+    try {
+      final pp = await _api.obtenerPreferenciaPago(auth.userId);
+      if (pp.ok && pp.list != null && pp.list!.isNotEmpty && mounted) {
+        final m = Map<String, dynamic>.from(pp.list!.first as Map);
+        final v = m['solotarjeta'];
+        setState(() => _soloTarjeta = v == true || v == 1 || v.toString() == '1' || v.toString() == 'true');
       }
     } catch (_) {}
     try {
@@ -167,7 +182,100 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _emTelCtrl.dispose();
     _emCorreo1Ctrl.dispose();
     _emCorreo2Ctrl.dispose();
+    _bajaPassCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _darDeBaja() async {
+    _bajaPassCtrl.clear();
+    bool obscure = true;
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSt) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Dar de baja mi cuenta'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: VaiaColors.danger.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: VaiaColors.danger.withValues(alpha: 0.35)),
+                ),
+                child: const Text(
+                  'Se desactivara tu cuenta y perderas el acceso. Toda tu informacion quedara inactiva y NO podra recuperarse desde la app.',
+                  style: TextStyle(fontSize: 12.5, color: VaiaColors.danger, fontWeight: FontWeight.w600),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _bajaPassCtrl,
+                obscureText: obscure,
+                decoration: InputDecoration(
+                  labelText: 'Confirma tu contrasena',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    onPressed: () => setSt(() => obscure = !obscure),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            TextButton(
+              onPressed: () {
+                if (_bajaPassCtrl.text.trim().isEmpty) return;
+                Navigator.pop(ctx, true);
+              },
+              style: TextButton.styleFrom(foregroundColor: VaiaColors.danger),
+              child: const Text('Dar de baja'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmar != true) return;
+    if (_bajaPassCtrl.text.trim().isEmpty) {
+      _toast('Ingresa tu contrasena para confirmar', ok: false);
+      return;
+    }
+    setState(() => _dandoDeBaja = true);
+    final auth = context.read<AuthProvider>();
+    final res = await _api.darDeBaja(auth.userId, _bajaPassCtrl.text);
+    if (!mounted) return;
+    setState(() => _dandoDeBaja = false);
+    if (res.ok) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          icon: const Icon(Icons.check_circle_outline, color: VaiaColors.danger, size: 40),
+          title: const Text('Cuenta dada de baja'),
+          content: const Text(
+            'Tu cuenta fue desactivada. Te enviamos un correo de confirmacion. Si no reconoces este movimiento, contacta al area de soporte de Vaia.',
+            style: TextStyle(fontSize: 13.5),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Entendido')),
+          ],
+        ),
+      );
+      if (!mounted) return;
+      final ride = context.read<RideProvider>();
+      ride.stopPolling();
+      ride.detenerPresencia();
+      await auth.logout();
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    } else {
+      _toast(res.mensaje.isNotEmpty ? res.mensaje : 'No se pudo dar de baja la cuenta', ok: false);
+    }
   }
 
   Future<void> _changePassword() async {
@@ -205,7 +313,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(S.t(context, 'Configuración', 'Settings'))),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
           _seccion(S.t(context, 'Apariencia', 'Appearance')),
           const SizedBox(height: 8),
@@ -226,7 +334,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          _seccion(S.t(context, 'Metodo de pago', 'Payment method')),
+          const SizedBox(height: 8),
+          Card(
+            elevation: 0,
+            shape: _cardShape,
+            child: SwitchListTile(
+              title: const Text('Solo recibir servicios con tarjeta', style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(_soloTarjeta ? 'Solo viajes pagados con tarjeta (PayPal / Mercado Pago)' : 'Efectivo y tarjeta', style: const TextStyle(color: VaiaColors.textSecondary)),
+              secondary: const Icon(Icons.credit_card_rounded, color: VaiaColors.primary),
+              activeColor: VaiaColors.primary,
+              value: _soloTarjeta,
+              onChanged: (v) async {
+                setState(() => _soloTarjeta = v);
+                final auth = context.read<AuthProvider>();
+                await _api.guardarPreferenciaPago(auth.userId, v);
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Seguridad', 'Security')),
           const SizedBox(height: 8),
           Card(
@@ -261,14 +388,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Cambiar Contraseña', 'Change Password')),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: _cardShape,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
                   TextField(controller: _currentPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Contraseña Actual', prefixIcon: Icon(Icons.lock_outline))),
@@ -276,7 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(controller: _newPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Nueva Contraseña', prefixIcon: Icon(Icons.lock))),
                   const SizedBox(height: 12),
                   TextField(controller: _confirmPassCtrl, obscureText: true, decoration: const InputDecoration(labelText: 'Confirmar Contraseña', prefixIcon: Icon(Icons.lock))),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -288,7 +415,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Contacto de emergencia', 'Emergency contact')),
           const SizedBox(height: 8),
           if (!_tieneEmergencia)
@@ -312,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             elevation: 0,
             shape: _cardShape,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 children: [
                   TextField(controller: _emNombreCtrl, decoration: const InputDecoration(labelText: 'Nombre completo *')),
@@ -322,7 +449,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   TextField(controller: _emCorreo1Ctrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Correo electrónico 1', prefixIcon: Icon(Icons.email_outlined))),
                   const SizedBox(height: 12),
                   TextField(controller: _emCorreo2Ctrl, keyboardType: TextInputType.emailAddress, decoration: const InputDecoration(labelText: 'Correo electrónico 2 (opcional)', prefixIcon: Icon(Icons.email_outlined))),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -337,7 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Dispositivos conectados', 'Connected devices')),
           const SizedBox(height: 8),
           Card(
@@ -377,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Permisos y privacidad', 'Permissions & privacy')),
           const SizedBox(height: 8),
           Card(
@@ -390,14 +517,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.pushNamed(context, '/permisos'),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           _seccion(S.t(context, 'Acerca de', 'About')),
           const SizedBox(height: 8),
           Card(
             elevation: 0,
             shape: _cardShape,
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -407,7 +534,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
@@ -425,7 +552,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
               style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.danger)),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 6),
+          Center(
+            child: _dandoDeBaja
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : TextButton(
+                    onPressed: _darDeBaja,
+                    style: TextButton.styleFrom(foregroundColor: VaiaColors.textMuted),
+                    child: const Text('Dar de baja mi cuenta', style: TextStyle(fontSize: 11.5)),
+                  ),
+          ),
+          const SizedBox(height: 14),
         ],
       ),
     );

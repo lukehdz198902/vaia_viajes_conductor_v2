@@ -115,13 +115,13 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               const Center(child: VaiaLogo(size: 72)),
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               Text('Verifica tu WhatsApp', style: Theme.of(context).textTheme.displaySmall, textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Text(
@@ -129,7 +129,7 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: List.generate(6, (i) => SizedBox(
@@ -147,7 +147,7 @@ class _VerifyPhoneScreenState extends State<VerifyPhoneScreen> {
                   ),
                 )),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 14),
               VaiaPrimaryButton(
                 label: 'Verificar',
                 icon: Icons.check_circle_outline_rounded,

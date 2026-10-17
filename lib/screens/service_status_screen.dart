@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -12,6 +13,9 @@ import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/directions_service.dart';
 import '../services/marker_icons.dart';
+import '../widgets/ruta_timeline.dart';
+import '../widgets/slide_to_confirm.dart';
+import '../services/sound_service.dart';
 import '../widgets/status_timeline.dart';
 import 'report_incident_screen.dart';
 
@@ -39,6 +43,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   String _claveTrazo = '';
   int _ultimoPasoCamara = -99;
   RideProvider? _rideRef;
+  String? _ultimoEstado;
 
   @override
   void initState() {
@@ -56,7 +61,14 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   }
 
   void _onRideChanged() {
-    if (mounted) _trazarRuta();
+    if (!mounted) return;
+    // Sonido al cambiar de estatus el servicio.
+    final nuevo = context.read<RideProvider>().activeRide?.servicioEstatus;
+    if (nuevo != null && nuevo != _ultimoEstado) {
+      if (_ultimoEstado != null) SoundService.cambioEstatus();
+      _ultimoEstado = nuevo;
+    }
+    _trazarRuta();
   }
 
   @override
@@ -184,7 +196,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           ),
           ListTile(
@@ -436,12 +448,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
               decoration: BoxDecoration(color: VaiaColors.border, borderRadius: BorderRadius.circular(3)),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
 
           _tituloEstatus(s),
           const SizedBox(height: 18),
           StatusTimeline(pasoActual: s.pasoActual, cancelado: s.cancelado, compacto: true),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
           _tarjetaPasajero(s, isEnViaje),
           const SizedBox(height: 14),
@@ -491,7 +503,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
               )
             else
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: VaiaColors.primaryGhost,
                   borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -535,7 +547,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
             _tarjetaParadas(ride, isEnViaje),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Row(children: [
             Expanded(
               child: OutlinedButton.icon(
@@ -557,11 +569,9 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
 
           if (isEnViaje) ...[
             const SizedBox(height: 6),
-            ElevatedButton.icon(
-              onPressed: () => _cobrarYFinalizar(ride, s.id, auth.userId),
-              icon: const Icon(Icons.payments_rounded),
-              label: const Text('Finalizar y cobrar'),
-              style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+            SlideToConfirm(
+              label: 'Desliza para finalizar y cobrar',
+              onConfirm: () => _cobrarYFinalizar(ride, s.id, auth.userId),
             ),
           ],
           const SizedBox(height: 12),
@@ -615,9 +625,9 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
           CircleAvatar(
             radius: 28,
             backgroundColor: VaiaColors.primaryGhost,
-            backgroundImage: (s.pasajeroFoto != null && s.pasajeroFoto!.isNotEmpty) ? NetworkImage(s.pasajeroFoto!) : null,
+            backgroundImage: providerFoto(s.pasajeroFoto),
             child: (s.pasajeroFoto == null || s.pasajeroFoto!.isEmpty)
-                ? Text(s.pasajeroNombreCompleto.substring(0, 1).toUpperCase(),
+                ? Text((s.pasajeroNombreCompleto.trim().isEmpty ? 'P' : s.pasajeroNombreCompleto.trim().substring(0, 1)).toUpperCase(),
                     style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: VaiaColors.primary))
                 : null,
           ),
@@ -662,12 +672,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     return _card(
       child: Column(
         children: [
-          _renglonRuta(const MarkerIcon(origin: true), 'Origen', s.direccionOrigen ?? '-', activo: !s.esEnViaje),
-          Padding(
-            padding: const EdgeInsets.only(left: 11),
-            child: Container(width: 2, height: 18, color: VaiaColors.border),
-          ),
-          _renglonRuta(const MarkerIcon(origin: false), 'Destino', s.direccionDestino ?? '-', activo: s.esEnViaje),
+          RutaTimeline(origen: s.direccionOrigen ?? '-', destino: s.direccionDestino ?? '-'),
           const SizedBox(height: 12),
           const Divider(height: 1),
           const SizedBox(height: 12),
@@ -784,7 +789,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
 
   Widget _card({required Widget child}) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: VaiaColors.surface,
           borderRadius: BorderRadius.circular(VaiaRadius.lg),

@@ -92,7 +92,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
           : RefreshIndicator(
               onRefresh: _cargar,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 children: [
                   Container(
                     padding: const EdgeInsets.all(14),

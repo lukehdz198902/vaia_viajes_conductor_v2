@@ -137,7 +137,7 @@ class _VehicleScreenState extends State<VehicleScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(24)),
               child: const Icon(Icons.directions_car_filled_rounded, size: 56, color: VaiaColors.primary),
             ),
@@ -254,6 +254,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
   final _anio = TextEditingController();
   final _color = TextEditingController();
   final _asientos = TextEditingController(text: '4');
+  int _gama = 1;
 
   @override
   void dispose() {
@@ -275,6 +276,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
       'anio': int.tryParse(_anio.text.trim()) ?? 0,
       'color': _color.text.trim(),
       'asientos': int.tryParse(_asientos.text.trim()) ?? 4,
+      'gama': _gama,
     });
   }
 
@@ -306,7 +308,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                   ),
                   const SizedBox(height: 18),
                   _header(),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                   _sectionLabel('Identificacion', Icons.confirmation_number_outlined),
                   const SizedBox(height: 10),
                   VaiaTextField(
@@ -319,7 +321,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                     onChanged: (_) => setState(() {}),
                     validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   _sectionLabel('Vehiculo', Icons.directions_car_outlined),
                   const SizedBox(height: 10),
                   Row(children: [
@@ -347,7 +349,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   _sectionLabel('Detalles', Icons.tune_rounded),
                   const SizedBox(height: 10),
                   VaiaTextField(
@@ -366,7 +368,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
                       child: VaiaTextField(
@@ -399,7 +401,31 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 10),
+                  _sectionLabel('Gama del vehiculo', Icons.workspace_premium_outlined),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: VaiaColors.bgSubtle,
+                      borderRadius: BorderRadius.circular(VaiaRadius.md),
+                      border: Border.all(color: VaiaColors.border),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: _gama,
+                        isExpanded: true,
+                        isDense: true,
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('Basico')),
+                          DropdownMenuItem(value: 2, child: Text('Plus')),
+                          DropdownMenuItem(value: 3, child: Text('VIP')),
+                        ],
+                        onChanged: (v) { if (v != null) setState(() => _gama = v); },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -417,7 +443,7 @@ class _UnidadFormSheetState extends State<_UnidadFormSheet> {
                       ),
                     ]),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                   VaiaPrimaryButton(
                     label: 'Registrar unidad',
                     icon: Icons.check_rounded,

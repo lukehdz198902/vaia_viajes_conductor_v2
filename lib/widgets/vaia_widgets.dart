@@ -97,7 +97,7 @@ class VaiaOutlineButton extends StatelessWidget {
       icon: icon != null ? Icon(icon, size: 18) : const SizedBox.shrink(),
       label: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
       style: OutlinedButton.styleFrom(
-        foregroundColor: VaiaColors.textPrimary,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
         side: const BorderSide(color: VaiaColors.border, width: 1.2),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         minimumSize: const Size(0, 46),
@@ -142,7 +142,7 @@ class VaiaCard extends StatelessWidget {
             borderRadius: radius,
             border: Border.all(color: Theme.of(context).dividerColor),
           ),
-          padding: padding ?? const EdgeInsets.all(16),
+          padding: padding ?? const EdgeInsets.all(12),
           child: child,
         ),
       ),
@@ -322,7 +322,7 @@ class VaiaTextField extends StatelessWidget {
       maxLength: maxLength,
       maxLines: obscureText ? 1 : maxLines,
       enabled: enabled,
-      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurface),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,

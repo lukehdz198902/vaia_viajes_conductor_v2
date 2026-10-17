@@ -51,20 +51,20 @@ class VaiaColors {
 }
 
 class VaiaSpacing {
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
-  static const double xxl = 24;
-  static const double xxxl = 32;
+  static const double xs = 3;
+  static const double sm = 6;
+  static const double md = 10;
+  static const double lg = 12;
+  static const double xl = 15;
+  static const double xxl = 18;
+  static const double xxxl = 24;
 }
 
 class VaiaRadius {
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
+  static const double sm = 6;
+  static const double md = 10;
+  static const double lg = 12;
+  static const double xl = 15;
   static const double pill = 999;
 }
 
@@ -121,21 +121,21 @@ class AppTheme {
     splashColor: VaiaColors.primary.withOpacity(0.10),
     highlightColor: VaiaColors.primary.withOpacity(0.08),
     textTheme: const TextTheme(
-      displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary, height: 1.1, letterSpacing: -0.5),
-      displayMedium: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary, height: 1.15, letterSpacing: -0.3),
-      displaySmall: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary, height: 1.2),
-      headlineLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
-      headlineMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
-      headlineSmall: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
-      titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
-      titleMedium: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
-      titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
-      bodyLarge: TextStyle(fontSize: 15, fontWeight: FontWeight.w400, color: VaiaColors.textPrimary, height: 1.4),
-      bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: VaiaColors.textPrimary, height: 1.4),
-      bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: VaiaColors.textSecondary, height: 1.4),
-      labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
-      labelMedium: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: VaiaColors.textSecondary, letterSpacing: 0.3),
-      labelSmall: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: VaiaColors.textMuted, letterSpacing: 0.4),
+      displayLarge: TextStyle(fontSize: 27, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary, height: 1.1, letterSpacing: -0.5),
+      displayMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary, height: 1.15, letterSpacing: -0.3),
+      displaySmall: TextStyle(fontSize: 19, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary, height: 1.2),
+      headlineLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+      headlineMedium: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+      headlineSmall: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+      titleLarge: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+      titleMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
+      titleSmall: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
+      bodyLarge: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w400, color: VaiaColors.textPrimary, height: 1.4),
+      bodyMedium: TextStyle(fontSize: 13, fontWeight: FontWeight.w400, color: VaiaColors.textPrimary, height: 1.4),
+      bodySmall: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w400, color: VaiaColors.textSecondary, height: 1.4),
+      labelLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: VaiaColors.textPrimary),
+      labelMedium: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: VaiaColors.textSecondary, letterSpacing: 0.3),
+      labelSmall: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: VaiaColors.textMuted, letterSpacing: 0.4),
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: VaiaColors.surface,
@@ -143,9 +143,10 @@ class AppTheme {
       elevation: 0,
       scrolledUnderElevation: 0.5,
       centerTitle: false,
+      toolbarHeight: 52,
       titleTextStyle: TextStyle(
         color: VaiaColors.textPrimary,
-        fontSize: 17,
+        fontSize: 15,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.2,
       ),
@@ -155,10 +156,10 @@ class AppTheme {
       filled: true,
       fillColor: VaiaColors.surface,
       hoverColor: VaiaColors.bgSubtle,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      hintStyle: const TextStyle(color: VaiaColors.textMuted, fontSize: 14),
-      labelStyle: const TextStyle(color: VaiaColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w500),
-      floatingLabelStyle: const TextStyle(color: VaiaColors.primary, fontSize: 13, fontWeight: FontWeight.w600),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      hintStyle: const TextStyle(color: VaiaColors.textMuted, fontSize: 13),
+      labelStyle: const TextStyle(color: VaiaColors.textSecondary, fontSize: 12.5, fontWeight: FontWeight.w500),
+      floatingLabelStyle: const TextStyle(color: VaiaColors.primary, fontSize: 12.5, fontWeight: FontWeight.w600),
       prefixIconColor: VaiaColors.textMuted,
       suffixIconColor: VaiaColors.textMuted,
       border: OutlineInputBorder(
@@ -190,17 +191,17 @@ class AppTheme {
         disabledForegroundColor: VaiaColors.textMuted,
         elevation: 0,
         shadowColor: Colors.transparent,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-        minimumSize: const Size(0, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        minimumSize: const Size(0, 44),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.md)),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.1),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.1),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: VaiaColors.primary,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: const Size(0, 36),
+        minimumSize: const Size(0, 32),
         textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.sm)),
       ),
@@ -209,8 +210,8 @@ class AppTheme {
       style: OutlinedButton.styleFrom(
         foregroundColor: VaiaColors.textPrimary,
         side: const BorderSide(color: VaiaColors.border, width: 1.2),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        minimumSize: const Size(0, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        minimumSize: const Size(0, 42),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.md)),
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
@@ -265,7 +266,7 @@ class AppTheme {
       backgroundColor: VaiaColors.surface,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
-      titleTextStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+      titleTextStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
       contentTextStyle: const TextStyle(fontSize: 14, color: VaiaColors.textSecondary, height: 1.4),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(
@@ -284,6 +285,14 @@ class AppTheme {
     ),
     iconTheme: const IconThemeData(color: VaiaColors.textSecondary, size: 22),
     primaryIconTheme: const IconThemeData(color: VaiaColors.primary, size: 22),
+    listTileTheme: const ListTileThemeData(
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      minVerticalPadding: 4,
+      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      horizontalTitleGap: 10,
+      minLeadingWidth: 0,
+    ),
     visualDensity: VisualDensity.compact,
   );
 }

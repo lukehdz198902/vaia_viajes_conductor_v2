@@ -82,7 +82,7 @@ class _PinPadStatefulState extends State<_PinPadStateful> {
         Text(widget.titulo, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
         const SizedBox(height: 6),
         Text(widget.subtitulo, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: VaiaColors.textSecondary)),
-        const SizedBox(height: 24),
+        const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(widget.longitud, (i) {
@@ -104,7 +104,7 @@ class _PinPadStatefulState extends State<_PinPadStateful> {
           const SizedBox(height: 14),
           Text(widget.error!, style: const TextStyle(fontSize: 12.5, color: VaiaColors.danger, fontWeight: FontWeight.w600)),
         ],
-        const SizedBox(height: 28),
+        const SizedBox(height: 16),
         SizedBox(
           width: 300,
           child: Column(
@@ -191,7 +191,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
                 Container(
@@ -255,7 +255,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             child: _PinPad(
               titulo: _primero == null ? 'Crea tu PIN' : 'Confirma tu PIN',
               subtitulo: _primero == null

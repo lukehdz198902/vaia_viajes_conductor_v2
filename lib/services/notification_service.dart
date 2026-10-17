@@ -8,6 +8,9 @@ class NotificationService {
   static String? _token;
   static String? get token => _token;
 
+  /// Se invoca al obtener o renovar el token para actualizarlo en el servidor.
+  static Future<void> Function(String token)? onToken;
+
   static Future<void> inicializar() async {
     try {
       await Firebase.initializeApp();
@@ -17,10 +20,14 @@ class NotificationService {
 
       _token = await messaging.getToken();
       Logger.i('FCM', 'Token obtenido: $_token');
+      if (_token != null && _token!.isNotEmpty) {
+        try { await onToken?.call(_token!); } catch (_) {}
+      }
 
-      messaging.onTokenRefresh.listen((t) {
+      messaging.onTokenRefresh.listen((t) async {
         _token = t;
         Logger.i('FCM', 'Token renovado');
+        try { await onToken?.call(t); } catch (_) {}
       });
 
       FirebaseMessaging.onMessage.listen((m) {

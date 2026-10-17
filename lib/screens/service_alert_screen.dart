@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/directions_service.dart';
 import '../services/marker_icons.dart';
+import '../services/sound_service.dart';
 import '../widgets/vaia_widgets.dart';
 
 /// Tarjeta de servicio entrante: ocupa la mitad inferior de la pantalla, es
@@ -35,6 +36,7 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
   @override
   void initState() {
     super.initState();
+    SoundService.nuevoServicio();
     MarkerIcons.cargar().then((_) { if (mounted) _prepararMapa(); });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -304,7 +306,9 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
                           radius: 24,
                           backgroundColor: VaiaColors.primaryGhost,
                           child: Text(
-                            (s.pasajeroNombre ?? 'P')[0].toUpperCase(),
+                            (s.pasajeroNombre ?? '').trim().isEmpty
+                                ? 'P'
+                                : (s.pasajeroNombre ?? '').trim()[0].toUpperCase(),
                             style: const TextStyle(fontWeight: FontWeight.w800, color: VaiaColors.primary, fontSize: 18),
                           ),
                         ),
@@ -360,7 +364,7 @@ class _ServiceAlertScreenState extends State<ServiceAlertScreen> {
                         _metrica(Icons.payments_rounded,
                             s.costoEstimado != null ? '\$${s.costoEstimado!.toStringAsFixed(0)}' : '--', 'Estimado'),
                       ]),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 10),
 
                       // Acciones
                       Row(children: [

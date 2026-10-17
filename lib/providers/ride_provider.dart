@@ -125,11 +125,9 @@ class RideProvider extends ChangeNotifier {
           });
           _hasNewRequest = true;
           notifyListeners();
-          // Si la app esta en segundo plano (burbuja), se trae al frente para
-          // que el conductor vea la tarjeta del servicio.
-          if (!_enPrimerPlano) {
-            BubbleOverlay.traerAlFrente();
-          }
+          // Trae la app al frente para que el conductor vea la tarjeta del
+          // servicio aunque este en la burbuja usando otra app.
+          BubbleOverlay.traerAlFrente();
         }
         break;
       case 'EstatusCambiado':
@@ -312,7 +310,7 @@ class RideProvider extends ChangeNotifier {
         await BubbleOverlay.solicitarPermiso();
         return;
       }
-      await BubbleOverlay.mostrar(conectado: _online && _conectadoWs, fecha: _fechaActual());
+      await BubbleOverlay.mostrar(conectado: _online, fecha: _fechaActual());
     } catch (_) {}
   }
 
@@ -362,7 +360,7 @@ class RideProvider extends ChangeNotifier {
             _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
       }
       _ultimaUbicacion = DateTime.now();
-      dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, _online && _conectadoWs, _ultimaUbicacion));
+      dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, _online, _ultimaUbicacion));
       _actualizarNotificacion();
       // Refresca la hora de "ultima ubicacion enviada" en la pantalla.
       notifyListeners();
@@ -399,7 +397,7 @@ class RideProvider extends ChangeNotifier {
       texto: _textoNotificacion(),
     );
     // Actualiza la burbuja flotante (solo si ya esta visible)
-    BubbleOverlay.actualizar(conectado: _online && _conectadoWs, fecha: _fechaActual());
+    BubbleOverlay.actualizar(conectado: _online, fecha: _fechaActual());
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ TAXIMETRO Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -470,7 +468,10 @@ class RideProvider extends ChangeNotifier {
     final resp = await _api.aceptarServicio(servicioId, conductorId);
     _loading = false;
     if (resp.ok && resp.data != null) {
-      _activeRide = Servicio.fromJson(resp.data!);
+      // El SP de aceptar no devuelve el id: se conserva el id del servicio
+      // ofrecido para que las acciones siguientes (llegar/iniciar/finalizar)
+      // encuentren el servicio.
+      _activeRide = Servicio.fromJson({...resp.data!, 'id': servicioId, 'servicioEstatus': 'En Camino'});
       _servicioOfrecido = null;
       _hasNewRequest = false;
       await _signalr.unirseAServicio(servicioId);
@@ -520,11 +521,12 @@ class RideProvider extends ChangeNotifier {
     final resp = await _api.iniciarViaje(servicioId, conductorId, codigoInicio);
     _loading = false;
     if (resp.ok) {
-      if (resp.data != null && resp.data!.isNotEmpty) {
-        _activeRide = Servicio.fromJson(resp.data!);
-      } else if (_activeRide != null) {
+      // El SP solo devuelve {resultado, mensaje}; conservamos el servicio
+      // activo (con su id) y solo actualizamos el estatus.
+      if (_activeRide != null) {
         _activeRide = Servicio.fromJson({
           ..._activeRide!.toMap(),
+          'id': _activeRide!.id,
           'servicioEstatus': 'En Viaje',
           'servicioiniciado': true,
         });

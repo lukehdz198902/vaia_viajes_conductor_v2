@@ -167,7 +167,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               style: const TextStyle(fontSize: 14, color: VaiaColors.textSecondary, height: 1.4)),
           const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: VaiaColors.surface,
               borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -251,7 +251,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 22),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: VaiaColors.surface,
               borderRadius: BorderRadius.circular(VaiaRadius.lg),

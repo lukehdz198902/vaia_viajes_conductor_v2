@@ -1,29 +1,34 @@
 {
-  "project_info": {
-    "project_number": "933685582766",
-    "project_id": "vaia-9760b",
-    "storage_bucket": "vaia-9760b.appspot.com"
-  },
-  "client": [
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:933685582766:android:0000000000000000000000",
-        "android_client_info": {
-          "package_name": "prozoft.com.vaiaconductor"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDp3aNnB9h8il09NbNbr2oigiHZEVTWBvQ"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    }
-  ],
-  "configuration_version": "1"
+    "project_info":  {
+                         "project_number":  "933685582766",
+                         "firebase_url":  "https://vaia-9760b.firebaseio.com",
+                         "project_id":  "vaia-9760b",
+                         "storage_bucket":  "vaia-9760b.firebasestorage.app"
+                     },
+    "client":  [
+                   {
+                       "client_info":  {
+                                           "mobilesdk_app_id":  "1:933685582766:android:0fca12fc0061a6bd68863f",
+                                           "android_client_info":  {
+                                                                       "package_name":  "prozoft.com.vaiaconductor"
+                                                                   }
+                                       },
+                       "oauth_client":  [
+
+                                        ],
+                       "api_key":  [
+                                       {
+                                           "current_key":  "AIzaSyA8KcEviMocge0WyWD6HHl6juA8bmknyCk"
+                                       }
+                                   ],
+                       "services":  {
+                                        "appinvite_service":  {
+                                                                  "other_platform_oauth_client":  [
+
+                                                                                                  ]
+                                                              }
+                                    }
+                   }
+               ],
+    "configuration_version":  "1"
 }

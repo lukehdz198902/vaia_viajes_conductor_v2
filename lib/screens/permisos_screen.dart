@@ -55,7 +55,7 @@ class _PermisosScreenState extends State<PermisosScreen> {
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               children: [
                 _titulo('Permisos de la app'),
                 const SizedBox(height: 8),
@@ -67,7 +67,7 @@ class _PermisosScreenState extends State<PermisosScreen> {
                 _link(Icons.description_rounded, 'Terminos y condiciones', Policies.terminos),
                 _link(Icons.assignment_return_rounded, 'Politicas de devolucion', Policies.devoluciones),
                 _link(Icons.security_rounded, 'Seguridad de datos', Policies.seguridad),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
               ],
             ),
     );

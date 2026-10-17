@@ -131,7 +131,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       _correoChip(correo),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
                       if (!_codigoEnviado) ...[
                         _paso(
                           numero: '1',
@@ -151,7 +151,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
                           titulo: 'Ingresa el codigo',
                           detalle: 'Escribe el codigo de 6 digitos que llego a tu correo.',
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         VaiaTextField(
                           controller: _codigoCtrl,
                           label: 'Codigo de verificacion',
@@ -162,7 +162,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
                           autofocus: true,
                           onFieldSubmitted: (_) => _verificar(),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 10),
                         VaiaPrimaryButton(
                           label: 'Verificar correo',
                           icon: Icons.verified_rounded,
@@ -246,7 +246,7 @@ class _EmailVerificationSheetState extends State<EmailVerificationSheet> {
               decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.5), borderRadius: BorderRadius.circular(3)),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           Row(
             children: [
               Container(

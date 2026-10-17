@@ -208,7 +208,9 @@ class OverlayBubbleService : Service() {
 
     private fun actualizar() {
         val archivo = leerArchivoEstado()
-        val conectado = archivo?.first ?: BubbleState.conectado
+        // El estado de conexion lo manda Flutter por el canal (BubbleState);
+        // el archivo solo aporta la hora de la ultima ubicacion enviada.
+        val conectado = BubbleState.conectado
         val fecha = archivo?.second ?: BubbleState.fecha
         val color = if (conectado) "#10B981" else "#EF4444"
         (dotView?.background as? GradientDrawable)?.setColor(Color.parseColor(color))

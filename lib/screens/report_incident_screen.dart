@@ -61,7 +61,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Reportar Incidente')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -77,7 +77,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               const SizedBox(height: 8),
               Text('Servicio #${widget.idServicio}', style: TextStyle(fontSize: 12, color: AppTheme.textLight)),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             const Text('Descripcion', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             TextFormField(
@@ -86,7 +86,7 @@ class _ReportIncidentScreenState extends State<ReportIncidentScreen> {
               maxLength: 500,
               decoration: const InputDecoration(hintText: 'Describa el incidente en detalle...', alignLabelWithHint: true),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(

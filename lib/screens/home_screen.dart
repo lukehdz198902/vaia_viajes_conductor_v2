@@ -32,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _resumenTimer;
   Timer? _gpsTimer;
   Timer? _batteryTimer;
+  Timer? _horaTimer;
+  int _horaActual = 0;
+  bool _horaManual = false;
   final _battery = Battery();
   bool _wakelockActivo = false;
   bool _alertaAbierta = false;
@@ -40,6 +43,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   GoogleMapController? _mapController;
   final Set<Marker> _mapMarkers = {};
   final Set<Circle> _mapCircles = {};
+  double _bearing = 0;
+  int? _diaDemanda;
+  int? _horaDemanda;
   bool _ocultarPaneles = false;
   Position? _miPosicion;
   StreamSubscription<Position>? _posSub;
@@ -87,10 +93,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _mapMarkers.removeWhere((m) => m.markerId.value == 'mi_ubicacion');
     final p = _miPosicion;
     if (p == null) return;
+    if (!p.heading.isNaN && p.heading >= 0) _bearing = p.heading;
     _mapMarkers.add(Marker(
       markerId: const MarkerId('mi_ubicacion'),
       position: LatLng(p.latitude, p.longitude),
-      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
+      icon: MarkerIcons.car ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      rotation: _bearing,
+      flat: true,
+      anchor: const Offset(0.5, 0.5),
       infoWindow: const InfoWindow(title: 'Mi ubicacion'),
       zIndex: 5,
     ));
@@ -100,7 +110,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// donde mas se conectan los pasajeros.
   Future<void> _cargarMapa() async {
     try {
-      final rd = await _api.zonasDemanda(dias: 90);
+      final p = _miPosicion;
+      final rd = await _api.zonasDemanda(
+        dias: 30,
+        lat: p?.latitude.toString(),
+        lng: p?.longitude.toString(),
+        radioKm: 10,
+        diaSemana: _diaDemanda,
+        hora: _horaDemanda,
+      );
       final rc = await _api.zonasConexion();
       final demanda = rd.list ?? [];
       final conexion = rc.list ?? [];
@@ -160,6 +178,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ..clear()
           ..addAll(markers);
       });
+      // Vuelve a colocar el marcador propio (fue removido al limpiar).
+      _actualizarMarcadorConductor();
+      if (mounted) setState(() {});
     } catch (_) {}
   }
 
@@ -206,12 +227,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       }
       _cargarMapa();
       _iniciarSeguimiento();
+      MarkerIcons.cargar().then((_) { if (mounted) setState(() => _actualizarMarcadorConductor()); });
       _cargarResumen();
       _resumenTimer = Timer.periodic(const Duration(seconds: 30), (_) => _cargarResumen());
       // Vigila que el GPS siga activo mientras el conductor esta conectado.
       _gpsTimer = Timer.periodic(const Duration(seconds: 15), (_) => _vigilarGps());
       // Vigila la bateria: sin carga y por debajo del 20% se desconecta.
       _batteryTimer = Timer.periodic(const Duration(seconds: 60), (_) => _vigilarBateria());
+      // El mapa de calor refleja la hora actual; se refresca al cambiar de hora.
+      _horaActual = DateTime.now().hour;
+      _horaDemanda = _horaActual;
+      _horaTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        final h = DateTime.now().hour;
+        if (h != _horaActual) {
+          _horaActual = h;
+          if (!_horaManual && mounted) {
+            setState(() => _horaDemanda = h);
+            _cargarMapa();
+          }
+        }
+      });
     });
   }
 
@@ -361,6 +396,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _gpsTimer?.cancel();
     _batteryTimer?.cancel();
     WakelockPlus.disable();
+    _horaTimer?.cancel();
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -610,6 +646,83 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Selectores de dia y hora para consultar las zonas con mas solicitudes
+  /// en un radio de 10 km alrededor de la ubicacion del conductor.
+  Widget _filtrosDemanda() {
+    final dias = <int?, String>{null: 'Dia', 1: 'Lun', 2: 'Mar', 3: 'Mie', 4: 'Jue', 5: 'Vie', 6: 'Sab', 7: 'Dom'};
+    final horas = <int?, String>{null: 'Hora actual'};
+    for (var h = 0; h < 24; h++) {
+      horas[h] = '${h.toString().padLeft(2, '0')}h';
+    }
+    Widget dd<T>(T value, Map<T, String> items, ValueChanged<T?> on) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: VaiaColors.surface,
+            borderRadius: BorderRadius.circular(VaiaRadius.md),
+            border: Border.all(color: VaiaColors.border),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<T>(
+              value: value,
+              isDense: true,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
+              items: items.entries.map((e) => DropdownMenuItem<T>(value: e.key, child: Text(e.value))).toList(),
+              onChanged: on,
+            ),
+          ),
+        );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      dd<int?>(_diaDemanda, dias, (v) { setState(() => _diaDemanda = v); _cargarMapa(); }),
+      const SizedBox(width: 6),
+      dd<int?>(_horaDemanda, horas, (v) { setState(() => _horaDemanda = v); _cargarMapa(); }),
+    ]);
+  }
+
+  Widget _botonDemanda() => Material(
+        color: VaiaColors.surface,
+        elevation: 3,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        child: InkWell(
+          onTap: _abrirDemandaSheet,
+          borderRadius: BorderRadius.circular(VaiaRadius.md),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.insights_rounded, size: 16, color: VaiaColors.primary),
+              SizedBox(width: 6),
+              Text('Demanda', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.primary)),
+            ]),
+          ),
+        ),
+      );
+
+  Future<void> _abrirDemandaSheet() async {
+    final p = _miPosicion;
+    final res = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: VaiaColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _DemandaSheet(lat: p?.latitude, lng: p?.longitude, diaSel: _diaDemanda, horaSel: _horaDemanda),
+    );
+    if (res == null || !mounted) return;
+    if (res['ahora'] == true) {
+      setState(() {
+        _horaManual = false;
+        _diaDemanda = null;
+        _horaActual = DateTime.now().hour;
+        _horaDemanda = _horaActual;
+      });
+    } else {
+      setState(() {
+        _horaManual = true;
+        _diaDemanda = res['dia'] as int?;
+        _horaDemanda = res['hora'] as int?;
+      });
+    }
+    _cargarMapa();
+  }
+
   Widget _buildIdleView(BuildContext context, AuthProvider auth, RideProvider ride) {
     return Stack(
       children: [
@@ -630,6 +743,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         // Estado de conexion (socket) y ultima ubicacion enviada al servidor
         Positioned(top: 10, left: 10, child: _chipEstado(ride)),
+        // Filtros de demanda por dia/hora (zonas con mas solicitudes en 10 km)
+        Positioned(top: 54, left: 10, child: _filtrosDemanda()),
+        // Boton para ver el grafico de demanda por dia y hora
+        Positioned(top: 92, left: 10, child: _botonDemanda()),
         // Boton para ocultar/mostrar las tarjetas y ver el mapa mas amplio
         Positioned(
           top: 10,
@@ -710,7 +827,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _estadoCard(BuildContext context, AuthProvider auth) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: VaiaColors.surface,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -794,7 +911,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -804,11 +921,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 s?.pasajeroNombre ?? 'Pasajero',
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               _rideDetail(const MarkerIcon(origin: true, size: 18), 'Origen', s?.direccionOrigen ?? '-'),
               const SizedBox(height: 10),
               _rideDetail(const MarkerIcon(origin: false, size: 18), 'Destino', s?.direccionDestino ?? '-'),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   if (s?.distanciaMetros != null)
@@ -1009,7 +1126,7 @@ class ServiceRequestDialog extends StatelessWidget {
       backgroundColor: VaiaColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(VaiaRadius.lg)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1027,14 +1144,14 @@ class ServiceRequestDialog extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             if (s.pasajeroNombre != null)
               Text(s.pasajeroNombre!, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 12),
             _iconRow(context, const MarkerIcon(origin: true, size: 18), 'Origen', s.direccionOrigen, VaiaColors.onlineGreen),
             const SizedBox(height: 8),
             _iconRow(context, const MarkerIcon(origin: false, size: 18), 'Destino', s.direccionDestino, VaiaColors.danger),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Row(
               children: [
                 if (s.distanciaMetros != null) _infoChip(context, '${(s.distanciaMetros! / 1000).toStringAsFixed(1)} km'),
@@ -1052,7 +1169,7 @@ class ServiceRequestDialog extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -1208,6 +1325,137 @@ class _UnidadPickerSheet extends StatelessWidget {
           ])),
           const Icon(Icons.chevron_right_rounded, color: VaiaColors.textMuted),
         ]),
+      ),
+    );
+  }
+}
+
+/// Grafico de demanda por dia de la semana y hora (matriz 7x24). Cada celda
+/// muestra cuantos servicios se solicitaron a esa hora/dia en los ultimos
+/// 30 dias dentro de 10 km. Al tocar una celda se filtra el mapa de calor.
+class _DemandaSheet extends StatefulWidget {
+  final double? lat;
+  final double? lng;
+  final int? diaSel;
+  final int? horaSel;
+  const _DemandaSheet({this.lat, this.lng, this.diaSel, this.horaSel});
+  @override
+  State<_DemandaSheet> createState() => _DemandaSheetState();
+}
+
+class _DemandaSheetState extends State<_DemandaSheet> {
+  final _api = ApiService();
+  bool _cargando = true;
+  List<List<int>> _m = List.generate(7, (_) => List.filled(24, 0));
+  int _max = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    try {
+      final r = await _api.demandaPorDiaHora(
+          lat: widget.lat?.toString(), lng: widget.lng?.toString(), radioKm: 10, dias: 30);
+      final m = List.generate(7, (_) => List.filled(24, 0));
+      int mx = 0;
+      if (r.ok && r.list != null) {
+        for (final e in r.list!) {
+          final mm = Map<String, dynamic>.from(e as Map);
+          final d = int.tryParse(mm['dia']?.toString() ?? '') ?? 0;
+          final h = int.tryParse(mm['hora']?.toString() ?? '') ?? 0;
+          final t = int.tryParse(mm['total']?.toString() ?? '') ?? 0;
+          if (d >= 1 && d <= 7 && h >= 0 && h <= 23) {
+            m[d - 1][h] = t;
+            if (t > mx) mx = t;
+          }
+        }
+      }
+      if (mounted) setState(() { _m = m; _max = mx; _cargando = false; });
+    } catch (_) {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  Color _color(int v) {
+    if (v <= 0 || _max <= 0) return VaiaColors.bgSubtle;
+    final r = (v / _max).clamp(0.0, 1.0);
+    return Color.lerp(VaiaColors.primary.withValues(alpha: 0.18), VaiaColors.danger, r)!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const dias = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Demanda por dia y hora', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 4),
+            const Text(
+              'Servicios solicitados en los ultimos 30 dias a menos de 10 km de tu ubicacion. Toca una celda para ver esa zona en el mapa de calor.',
+              style: TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+            ),
+            const SizedBox(height: 12),
+            if (_cargando)
+              const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
+            else ...[
+              Row(children: [
+                const SizedBox(width: 24),
+                for (var h = 0; h < 24; h++)
+                  Expanded(
+                    child: Text(h % 3 == 0 ? '$h' : '',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 7.5, color: VaiaColors.textMuted)),
+                  ),
+              ]),
+              for (var d = 0; d < 7; d++)
+                Row(children: [
+                  SizedBox(
+                    width: 24,
+                    child: Text(dias[d],
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: VaiaColors.textSecondary)),
+                  ),
+                  for (var h = 0; h < 24; h++)
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.pop(context, {'dia': d + 1, 'hora': h}),
+                        child: Container(
+                          height: 18,
+                          margin: const EdgeInsets.all(0.6),
+                          decoration: BoxDecoration(
+                            color: _color(_m[d][h]),
+                            borderRadius: BorderRadius.circular(2),
+                            border: (widget.diaSel == d + 1 && widget.horaSel == h)
+                                ? Border.all(color: VaiaColors.textPrimary, width: 1.2)
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              const SizedBox(height: 10),
+              Row(children: [
+                const Text('Menos', style: TextStyle(fontSize: 10, color: VaiaColors.textMuted)),
+                const SizedBox(width: 6),
+                for (var i = 0; i < 6; i++)
+                  Container(width: 16, height: 10, margin: const EdgeInsets.only(right: 2), color: _color(((i / 5) * _max).round())),
+                const SizedBox(width: 6),
+                const Text('Mas', style: TextStyle(fontSize: 10, color: VaiaColors.textMuted)),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, {'ahora': true}),
+                  child: const Text('Hora actual'),
+                ),
+              ]),
+            ],
+          ],
+        ),
       ),
     );
   }

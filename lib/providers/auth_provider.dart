@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import '../models/conductor_model.dart';
 import '../services/api_service.dart';
@@ -5,6 +6,7 @@ import '../services/storage_service.dart';
 import '../services/signalr_service.dart';
 import '../services/notification_service.dart';
 import '../services/app_info.dart';
+import '../services/logger.dart';
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -32,7 +34,7 @@ class AuthProvider extends ChangeNotifier {
       _conductor = Conductor.fromJson(data);
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
-      _registrarToken();
+      await _registrarToken();
       _registrarSesionDispositivo();
       // Refresca el perfil para traer las banderas actualizadas (correo,
       // telefono, documentacion) y no volver a pedir lo ya validado.
@@ -142,11 +144,27 @@ class AuthProvider extends ChangeNotifier {
 
   /// Registra el token de notificaciones push (FCM) en el backend.
   Future<void> _registrarToken() async {
-    final t = NotificationService.token;
-    if (t == null || t.isEmpty || _conductor == null) return;
+    NotificationService.onToken = (t) async {
+      final c = _conductor;
+      if (c == null || t.isEmpty) return;
+      try {
+        final r = await _api.actualizarToken(c.id, t, so: AppInfo.sistemaOperativo);
+        Logger.i('Auth', 'Token FCM renovado -> servidor ok=${r.ok} ${r.mensaje}');
+      } catch (e) { Logger.w('Auth', 'No se pudo actualizar token FCM: $e'); }
+    };
+    if (_conductor == null) return;
+    String? t = NotificationService.token;
+    if (t == null || t.isEmpty) {
+      try {
+        t = await FirebaseMessaging.instance.getToken();
+        Logger.i('Auth', 'Token FCM obtenido directo: ${t ?? "null"}');
+      } catch (e) { Logger.e('Auth', 'Error getToken FCM: $e'); }
+    }
+    if (t == null || t.isEmpty) return;
     try {
-      await _api.actualizarToken(_conductor!.id, t);
-    } catch (_) {}
+      final r = await _api.actualizarToken(_conductor!.id, t, so: AppInfo.sistemaOperativo);
+      Logger.i('Auth', 'Token FCM -> servidor id=${_conductor!.id} ok=${r.ok} ${r.mensaje}');
+    } catch (e) { Logger.e('Auth', 'No se pudo registrar token FCM: $e'); }
   }
 
   Future<bool> login(String account, String password,
@@ -160,7 +178,7 @@ class AuthProvider extends ChangeNotifier {
       await _storage.saveUserData(resp.data!);
       try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
       notifyListeners();
-      _registrarToken();
+      await _registrarToken();
       _registrarSesionDispositivo();
       // Trae el estatus REAL del servidor (correo, telefono, documentacion)
       // para no volver a pedir verificaciones ya realizadas.
@@ -170,6 +188,30 @@ class AuthProvider extends ChangeNotifier {
     _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'Error al iniciar sesión');
     notifyListeners();
     return false;
+  }
+
+  Future<bool> loginConGoogle(String idToken) async {
+    _loading = true; _error = null; notifyListeners();
+    try {
+      final resp = await _api.iniciarSesionGoogle(idToken, googleKey: NotificationService.token,
+          dispositivoInfo: AppInfo.dispositivo, sistemaOperativo: AppInfo.sistemaOperativo);
+      _loading = false;
+      if (resp.ok && resp.data != null) {
+        _conductor = Conductor.fromJson(resp.data!);
+        await _storage.saveUserData(resp.data!);
+        try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
+        notifyListeners();
+        await _registrarToken();
+        _registrarSesionDispositivo();
+        await refreshPerfil();
+        return true;
+      }
+      _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'No se pudo iniciar sesion con Google');
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _loading = false; _error = 'Error de conexion'; notifyListeners(); return false;
+    }
   }
 
   Future<void> logout() async {

@@ -4,7 +4,7 @@ import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/storage_service.dart';
 import '../services/biometric_service.dart';
-import '../widgets/vaia_widgets.dart';
+import '../widgets/login_background.dart';
 import 'pin_screens.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -65,55 +65,55 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(gradient: VaiaColors.heroGradient),
-        child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(color: Colors.white.withOpacity(0.20), width: 1.5),
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          Positioned.fill(child: LoginBackground(accent: VaiaColors.primary, accent2: VaiaColors.accent)),
+          SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, 8))],
+                    ),
+                    child: Image.asset('assets/images/logo.png', width: 96, height: 96),
                   ),
-                  child: const VaiaLogo(size: 80, color: Colors.white),
-                ),
-                const SizedBox(height: 28),
-                const Text(
-                  'Vaia Conductor',
-                  style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: -0.5,
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Vaia Conductor',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: VaiaColors.textPrimary,
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Tu camino, tu ingreso',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.85),
-                    letterSpacing: 0.3,
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Tu camino, tu ingreso',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: VaiaColors.textSecondary,
+                      letterSpacing: 0.3,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 48),
-                SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white.withOpacity(0.85),
+                  const SizedBox(height: 44),
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2.5, color: VaiaColors.primary),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

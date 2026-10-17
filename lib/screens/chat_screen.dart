@@ -49,7 +49,7 @@ class _ChatScreenState extends State<ChatScreen> {
             child: chat.messages.isEmpty
                 ? const Center(child: Text('Sin mensajes aún'))
                 : ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(12),
                     itemCount: chat.messages.length,
                     itemBuilder: (_, i) {
                       final m = chat.messages[i];

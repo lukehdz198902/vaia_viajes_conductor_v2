@@ -1,3 +1,4 @@
+import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -115,7 +116,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
         color: VaiaColors.primary,
         onRefresh: _cargar,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
           children: [
             _selectorSemana(),
             const SizedBox(height: 14),
@@ -215,7 +216,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     final r = _resumen;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: VaiaColors.primaryGradient,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -228,7 +229,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           const SizedBox(height: 6),
           Text(_money(r?['ganancia']),
               style: const TextStyle(color: Colors.white, fontSize: 38, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           Row(
             children: [
               _miniKpi('${r?['viajes'] ?? 0}', 'Viajes'),
@@ -256,7 +257,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
 
   Widget _seccion(String titulo, Widget hijo) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: VaiaColors.surface,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),
@@ -391,7 +392,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
                 CircleAvatar(
                   radius: 18,
                   backgroundColor: VaiaColors.primaryGhost,
-                  backgroundImage: (foto != null && foto.isNotEmpty) ? NetworkImage(foto) : null,
+                  backgroundImage: providerFoto(foto),
                   child: (foto == null || foto.isEmpty)
                       ? Text((nombre.isEmpty ? 'P' : nombre.substring(0, 1)).toUpperCase(),
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: VaiaColors.primary))
@@ -428,7 +429,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
   Widget _corteSemanal(dynamic c, ProfileProvider profile, AuthProvider auth) {
     if (c == null) return const SizedBox.shrink();
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: VaiaColors.surface,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),

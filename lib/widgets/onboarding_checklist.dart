@@ -56,7 +56,7 @@ class OnboardingChecklist extends StatelessWidget {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: VaiaColors.surface,
         borderRadius: BorderRadius.circular(VaiaRadius.lg),

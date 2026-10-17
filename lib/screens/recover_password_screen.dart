@@ -92,12 +92,12 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
               children: [
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(20)),
                     child: const Icon(Icons.lock_reset_rounded, size: 52, color: VaiaColors.primary),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
                 Text('Recuperar contrasena', style: Theme.of(context).textTheme.displaySmall, textAlign: TextAlign.center),
                 const SizedBox(height: 6),
                 Text(
@@ -107,7 +107,7 @@ class _RecoverPasswordScreenState extends State<RecoverPasswordScreen> {
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: VaiaColors.textSecondary),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 14),
                 VaiaTextField(
                   controller: _telCtrl,
                   label: 'Telefono',

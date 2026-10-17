@@ -89,7 +89,7 @@ class _VehicleDocumentsScreenState extends State<VehicleDocumentsScreen> {
           : RefreshIndicator(
               onRefresh: _cargar,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 children: _tipos.map((t) {
                   final id = int.tryParse(t['id']?.toString() ?? '') ?? 0;
                   final nombre = t['tipoarchivo']?.toString() ?? '';
