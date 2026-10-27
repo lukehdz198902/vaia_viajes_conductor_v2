@@ -8,6 +8,7 @@ import '../services/foto_util.dart';
 import '../widgets/vaia_widgets.dart';
 import '../widgets/email_verification_sheet.dart';
 import 'verify_phone_screen.dart';
+import 'connection_activity_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -161,6 +162,15 @@ class ProfileScreen extends StatelessWidget {
               label: 'Configuracion',
               icon: Icons.settings_outlined,
               onPressed: auth.isOnline ? null : () => Navigator.pushNamed(context, '/settings'),
+            ),
+            const SizedBox(height: 10),
+            VaiaOutlineButton(
+              label: 'Actividad y datos',
+              icon: Icons.insights_rounded,
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ConnectionActivityScreen()),
+              ),
             ),
             const SizedBox(height: 12),
           ],

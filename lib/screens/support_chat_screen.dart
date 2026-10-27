@@ -20,6 +20,7 @@ class SupportChatScreen extends StatefulWidget {
 
 class _SupportChatScreenState extends State<SupportChatScreen> {
   final _msgCtrl = TextEditingController();
+  final _msgFocus = FocusNode();
   final _scrollCtrl = ScrollController();
   bool _inicializando = true;
   String? _error;
@@ -54,7 +55,14 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
     final texto = _msgCtrl.text.trim();
     if (texto.isEmpty) return;
     _msgCtrl.clear();
+    _msgFocus.requestFocus();
     await context.read<SoporteProvider>().enviarMensaje(texto);
+    if (mounted) {
+      _msgFocus.requestFocus();
+      Future.delayed(const Duration(milliseconds: 120), () {
+        if (mounted) _msgFocus.requestFocus();
+      });
+    }
     _scrollAbajo();
   }
 
@@ -70,6 +78,7 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   @override
   void dispose() {
     _msgCtrl.dispose();
+    _msgFocus.dispose();
     _scrollCtrl.dispose();
     super.dispose();
   }
@@ -277,7 +286,9 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
   }
 
   Widget _buildInput(SoporteProvider soporte) {
-    final habilitado = soporte.solicitudActiva?.abierta == true && !soporte.enviando;
+    final abierto = soporte.solicitudActiva?.abierta == true;
+    final habilitado = abierto;
+    final puedeEnviar = abierto && !soporte.enviando;
     return Container(
       padding: EdgeInsets.only(
         left: 12, right: 8, top: 8,
@@ -292,8 +303,10 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           Expanded(
             child: TextField(
               controller: _msgCtrl,
+              focusNode: _msgFocus,
               enabled: habilitado,
               textInputAction: TextInputAction.send,
+              onEditingComplete: () {},
               onSubmitted: (_) => _enviar(),
               decoration: InputDecoration(
                 hintText: habilitado ? 'Escribe tu mensaje...' : 'Solicitud cerrada',
@@ -303,10 +316,10 @@ class _SupportChatScreenState extends State<SupportChatScreen> {
           ),
           const SizedBox(width: 8),
           Material(
-            color: habilitado ? VaiaColors.primary : VaiaColors.bgMuted,
+            color: puedeEnviar ? VaiaColors.primary : VaiaColors.bgMuted,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
-              onTap: habilitado ? _enviar : null,
+              onTap: puedeEnviar ? _enviar : null,
               borderRadius: BorderRadius.circular(12),
               child: Container(
                 width: 44, height: 44,

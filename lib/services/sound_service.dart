@@ -10,6 +10,7 @@ class SoundService {
 
   static Future<void> nuevoServicio() => _play('sounds/nuevo_servicio.wav');
   static Future<void> cambioEstatus() => _play('sounds/cambio_estatus.wav');
+  static Future<void> mensajeSoporte() => _play('sounds/nuevo_servicio.wav');
 
   static Future<void> _play(String asset) async {
     if (!_habilitado) return;

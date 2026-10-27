@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
+import 'network_usage_service.dart';
 
 class ApiResponse {
   final bool ok;
@@ -48,6 +49,7 @@ class ApiService {
   String base = ApiConfig.apiRoot;
 
   Future<ApiResponse> _processResponse(http.Response resp, {bool isList = false, String? endpoint}) async {
+    NetworkUsageService.addReceived(resp.bodyBytes.length);
     try {
       final body = utf8.decode(resp.bodyBytes);
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
@@ -92,9 +94,11 @@ class ApiService {
   Future<ApiResponse> post(String endpoint, Map<String, dynamic> body) async {
     try {
       final url = Uri.parse('$base$endpoint');
+      final encoded = json.encode(body);
+      NetworkUsageService.addSent(utf8.encode(encoded).length);
       final resp = await http.post(url,
         headers: {'Content-Type': 'application/json; charset=utf-8'},
-        body: json.encode(body),
+        body: encoded,
       ).timeout(ApiConfig.timeout);
       return _processResponse(resp, endpoint: endpoint);
     } catch (e) {
@@ -105,6 +109,7 @@ class ApiService {
   Future<ApiResponse> get(String endpoint) async {
     try {
       final url = Uri.parse('$base$endpoint');
+      NetworkUsageService.addSent(url.toString().length);
       final resp = await http.get(url,
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       ).timeout(ApiConfig.timeout);
@@ -119,6 +124,7 @@ class ApiService {
       final url = Uri.parse('$base$endpoint');
       final req = http.MultipartRequest('POST', url);
       req.fields.addAll(fields);
+      NetworkUsageService.addSent(fields.values.fold<int>(0, (a, b) => a + utf8.encode(b).length));
       final streamed = await req.send().timeout(ApiConfig.timeout);
       final resp = await http.Response.fromStream(streamed);
       return _processResponse(resp, endpoint: endpoint);
@@ -293,6 +299,14 @@ class ApiService {
   /// Resumen del dia: ganancias, servicios realizados y minutos conectado.
   Future<ApiResponse> resumenDia(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ResumenDia?idConductor=$idConductor');
+
+  Future<ApiResponse> historialConexion(int idConductor, {int dias = 7}) {
+    final hoy = DateTime.now();
+    final desde = DateTime(hoy.year, hoy.month, hoy.day)
+        .subtract(Duration(days: dias - 1));
+    final hasta = DateTime(hoy.year, hoy.month, hoy.day);
+    return get('${ApiConfig.conductorEndpoint}/HistorialConexion?idConductor=$idConductor${_rango(desde, hasta)}');
+  }
 
   // ─── DOCUMENTOS ──────────────────────────────────────────────
 

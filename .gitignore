@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Configuracion Firebase duplicada en la raiz (la valida es android/app/google-services.json)
+/google-services.json

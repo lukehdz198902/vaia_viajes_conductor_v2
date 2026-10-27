@@ -7,6 +7,9 @@ import 'services/signalr_service.dart';
 import 'services/notification_service.dart';
 import 'services/locale_provider.dart';
 import 'services/app_info.dart';
+import 'services/connectivity_service.dart';
+import 'services/network_usage_service.dart';
+import 'widgets/offline_banner.dart';
 import 'providers/auth_provider.dart';
 import 'providers/ride_provider.dart';
 import 'providers/profile_provider.dart';
@@ -38,12 +41,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es', null);
   await AppInfo.cargar();
+  await NetworkUsageService.init();
   await NotificationService.inicializar();
   final signalr = SignalRService();
+  final connectivity = ConnectivityService()..start();
   runApp(
     MultiProvider(
       providers: [
         Provider<SignalRService>.value(value: signalr),
+        ChangeNotifierProvider<ConnectivityService>.value(value: connectivity),
         ChangeNotifierProvider(create: (_) => LocaleProvider()..cargar()),
         ChangeNotifierProvider(create: (_) => AuthProvider(signalr)),
         ChangeNotifierProvider(create: (_) => RideProvider(signalr)),
@@ -76,6 +82,10 @@ class VaiaViajesApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
+      builder: (context, child) {
+        final online = context.watch<ConnectivityService>().online;
+        return Column(children: [if (!online) const OfflineBanner(), Expanded(child: child ?? const SizedBox())]);
+      },
       initialRoute: '/splash',
       onGenerateRoute: (settings) {
         Widget page;

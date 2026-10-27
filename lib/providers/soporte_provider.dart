@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/soporte_model.dart';
 import '../services/api_service.dart';
 import '../services/signalr_service.dart';
+import '../services/sound_service.dart';
 import 'auth_provider.dart';
 
 class SoporteProvider extends ChangeNotifier {
@@ -47,9 +48,12 @@ class SoporteProvider extends ChangeNotifier {
   void _onEvent(RealtimeEvent event) {
     if (event.tipo == 'NuevoMensajeSoporte') {
       final idSol = _toInt(event.data['idSolicitud']);
+      final emisor = event.data['emisor']?.toString() ?? '';
+      if (emisor == 'soporte') SoundService.mensajeSoporte();
       if (idSol == _solicitudActiva?.id) {
-        final emisor = event.data['emisor']?.toString() ?? '';
         if (emisor == 'soporte') {
+          final idMsg = _toInt(event.data['id'] ?? 0);
+          if (idMsg > 0 && _mensajes.any((m) => m.id == idMsg)) return;
           _mensajes.add(SoporteMensajeModel(
             id: _toInt(event.data['id'] ?? 0),
             idSolicitud: idSol,
@@ -139,8 +143,6 @@ class SoporteProvider extends ChangeNotifier {
           mensaje: texto.trim(),
           fechaCreacion: DateTime.now().toIso8601String(),
         ));
-        await _signalr.enviarMensajeSoporte(
-            _solicitudActiva!.id, _auth.userId, _auth.conductor?.nombreCompleto ?? 'Conductor', texto.trim());
         _enviando = false;
         notifyListeners();
         return true;
