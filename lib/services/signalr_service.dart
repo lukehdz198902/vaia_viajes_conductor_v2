@@ -129,12 +129,21 @@ class SignalRService {
     } catch (_) {}
   }
 
-  /// Reporta la ubicacion GPS del conductor (se emite a los interesados).
-  Future<void> reportarUbicacion(double lat, double lng, {int? idServicio}) async {
+  /// Reporta la ubicacion GPS del conductor. Devuelve false si el WebSocket
+  /// no esta disponible para que la app use el respaldo REST.
+  Future<bool> reportarUbicacion(double lat, double lng, {int? idServicio}) async {
     try {
-      await _servicioConn?.invoke('ActualizarUbicacion',
-          args: [_idConductor, lat.toString(), lng.toString(), idServicio ?? _idServicioActivo]);
-    } catch (_) {}
+      final conn = _servicioConn;
+      if (conn == null || conn.state != HubConnectionState.Connected) return false;
+      await conn
+          .invoke('ActualizarUbicacion',
+              args: [_idConductor, lat.toString(), lng.toString(), idServicio ?? _idServicioActivo])
+          .timeout(const Duration(seconds: 8));
+      return true;
+    } catch (e) {
+      Logger.w('SignalR', 'No se pudo reportar ubicacion: $e');
+      return false;
+    }
   }
 
   Future<void> latido() async {

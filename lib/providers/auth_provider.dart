@@ -45,8 +45,9 @@ class AuthProvider extends ChangeNotifier {
   /// Registra el dispositivo actual en el servidor para que aparezca en el
   /// listado de "Dispositivos conectados" (y pueda cerrarse remotamente).
   Future<void> _registrarSesionDispositivo() async {
-    final token = _conductor?.uuidsesion;
-    if (_conductor == null || token == null || token.isEmpty) return;
+    if (_conductor == null) return;
+    final token = await StorageService().getDeviceId();
+    if (token.isEmpty) return;
     try {
       await _api.registrarSesion(_conductor!.id, token,
           dispositivo: AppInfo.dispositivo, so: AppInfo.sistemaOperativo);

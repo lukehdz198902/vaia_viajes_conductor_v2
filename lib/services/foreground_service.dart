@@ -82,6 +82,7 @@ class _ConductorTaskHandler extends TaskHandler {
       }
       if (pos == null) return;
 
+      final idServicio = await FlutterForegroundTask.getData<int>(key: 'idServicio') ?? 0;
       final uri = Uri.parse('${ApiConfig.baseUrl}/ActualizarUbicacion');
       final resp = await http.post(
         uri,
@@ -90,6 +91,7 @@ class _ConductorTaskHandler extends TaskHandler {
           'idConductor': _idConductor,
           'lat': pos.latitude.toString(),
           'lng': pos.longitude.toString(),
+          'idServicio': idServicio,
         }),
       ).timeout(const Duration(seconds: 15));
 
@@ -184,6 +186,13 @@ class ForegroundServiceManager {
   static Future<void> marcarPrimerPlano(bool enPrimerPlano) async {
     try {
       await FlutterForegroundTask.saveData(key: 'enPrimerPlano', value: enPrimerPlano);
+    } catch (_) {}
+  }
+
+  /// Servicio activo que debe asociarse a los puntos GPS del recorrido.
+  static Future<void> marcarServicio(int? idServicio) async {
+    try {
+      await FlutterForegroundTask.saveData(key: 'idServicio', value: idServicio ?? 0);
     } catch (_) {}
   }
 

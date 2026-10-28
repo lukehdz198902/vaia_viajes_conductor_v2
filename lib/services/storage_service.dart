@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -12,15 +13,28 @@ class StorageService {
   static const _userStatusKey = 'conductor_status';
   static const _userDataKey = 'conductor_user_data';
   static const _onboardingKey = 'conductor_onboarding';
+  static const _tourKey = 'conductor_app_tour';
   static const _terminosKey = 'conductor_terminos';
   static const _biometriaKey = 'conductor_biometria';
   static const _pinHabilitadoKey = 'conductor_pin_habilitado';
   static const _pinKey = 'conductor_pin';
+  static const _deviceIdKey = 'conductor_device_id';
 
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
   Future<String?> getSessionToken() => _secure.read(key: _tokenKey);
   Future<void> setSessionToken(String token) => _secure.write(key: _tokenKey, value: token);
+
+  /// Identificador estable de este dispositivo (no cambia entre sesiones).
+  Future<String> getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString(_deviceIdKey) ?? '';
+    if (id.isNotEmpty) return id;
+    final random = Random.secure();
+    id = List.generate(4, (_) => random.nextInt(0x7FFFFFFF).toRadixString(16).padLeft(8, '0')).join();
+    await prefs.setString(_deviceIdKey, id);
+    return id;
+  }
   Future<void> removeSessionToken() => _secure.delete(key: _tokenKey);
 
   Future<void> saveUserData(Map<String, dynamic> user) async {
@@ -74,6 +88,16 @@ class StorageService {
     return prefs.getBool(_onboardingKey) ?? false;
   }
 
+
+  Future<void> setTourCompletado(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_tourKey, v);
+  }
+
+  Future<bool> getTourCompletado() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_tourKey) ?? false;
+  }
   Future<void> setTerminosAceptados(bool v) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_terminosKey, v);
@@ -119,7 +143,15 @@ class StorageService {
 
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(_userIdKey);
+    await prefs.remove(_userNameKey);
+    await prefs.remove(_userEmailKey);
+    await prefs.remove(_userPhoneKey);
+    await prefs.remove(_userIdCompaniaKey);
+    await prefs.remove(_userDataKey);
+    await prefs.remove(_userStatusKey);
+    await prefs.remove(_biometriaKey);
+    await prefs.remove(_pinHabilitadoKey);
     await _secure.deleteAll();
   }
 }

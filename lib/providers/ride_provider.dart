@@ -40,6 +40,8 @@ class RideProvider extends ChangeNotifier {
   DateTime? _inicioViajeTaxi;
   double? _costoEnCurso;
   DateTime? _ultimaUbicacion;
+  String? _errorUbicacion;
+  bool _reportandoPresencia = false;
   bool _hasNewRequest = false;
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
@@ -89,6 +91,7 @@ class RideProvider extends ChangeNotifier {
   bool get online => _online;
   double? get costoEnCurso => _costoEnCurso;
   DateTime? get ultimaUbicacion => _ultimaUbicacion;
+  String? get errorUbicacion => _errorUbicacion;
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ SIGNALR Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
@@ -243,6 +246,7 @@ class RideProvider extends ChangeNotifier {
       dirDatos: _dirDatos,
     );
     await ForegroundServiceManager.marcarPrimerPlano(_enPrimerPlano);
+    await ForegroundServiceManager.marcarServicio(_idServicioGps > 0 ? _idServicioGps : null);
   }
 
   /// Lee el intervalo de envio de ubicacion configurado en el portal.
@@ -343,29 +347,69 @@ class RideProvider extends ChangeNotifier {
   }
 
   Future<void> _reportarPresencia() async {
-    if (_idConductorPresencia <= 0) return;
+    if (_idConductorPresencia <= 0 || _reportandoPresencia) return;
+    _reportandoPresencia = true;
     try {
-      if (!await asegurarPermisoUbicacion()) return;
-      final enViaje = _idServicioGps > 0;
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: LocationSettings(
-          accuracy: enViaje ? LocationAccuracy.high : LocationAccuracy.medium,
-        ),
-      );
-      if (_conectadoWs) {
-        await _signalr.reportarUbicacion(pos.latitude, pos.longitude,
-            idServicio: enViaje ? _idServicioGps : null);
-      } else {
-        await _api.actualizarUbicacion(
-            _idConductorPresencia, pos.latitude.toString(), pos.longitude.toString());
+      if (!await asegurarPermisoUbicacion()) {
+        _errorUbicacion = 'Permiso de ubicacion requerido';
+        notifyListeners();
+        return;
       }
+
+      final enViaje = _idServicioGps > 0;
+      Position? pos;
+      try {
+        pos = await Geolocator.getCurrentPosition(
+          locationSettings: LocationSettings(
+            accuracy: enViaje ? LocationAccuracy.high : LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 12),
+          ),
+        );
+      } catch (_) {
+        pos = await Geolocator.getLastKnownPosition();
+      }
+      if (pos == null) {
+        _errorUbicacion = 'Sin senal GPS';
+        notifyListeners();
+        return;
+      }
+
+      var enviado = false;
+      if (_conectadoWs) {
+        enviado = await _signalr.reportarUbicacion(
+          pos.latitude,
+          pos.longitude,
+          idServicio: enViaje ? _idServicioGps : null,
+        );
+      }
+      if (!enviado) {
+        final res = await _api.actualizarUbicacion(
+          _idConductorPresencia,
+          pos.latitude.toString(),
+          pos.longitude.toString(),
+          idServicio: enViaje ? _idServicioGps : null,
+        );
+        enviado = res.ok;
+      }
+      if (!enviado) {
+        _errorUbicacion = 'No se pudo enviar la ubicacion';
+        notifyListeners();
+        return;
+      }
+
       _ultimaUbicacion = DateTime.now();
+      _errorUbicacion = null;
       dirEstadoUbicacion().then((d) => escribirEstadoUbicacion(d, _online, _ultimaUbicacion));
       _actualizarNotificacion();
       // Refresca la hora de "ultima ubicacion enviada" en la pantalla.
       notifyListeners();
       if (_taxiActivo) await _reportarTaximetro(pos);
-    } catch (_) {}
+    } catch (_) {
+      _errorUbicacion = 'No se pudo enviar la ubicacion';
+      notifyListeners();
+    } finally {
+      _reportandoPresencia = false;
+    }
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ NOTIFICACION DE ESTADO (servicio en primer plano) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -449,6 +493,7 @@ class RideProvider extends ChangeNotifier {
   void _startGps(int idServicio, [int? idConductor]) {
     _idServicioGps = idServicio;
     if (idConductor != null && idConductor > 0) _idConductorPresencia = idConductor;
+    ForegroundServiceManager.marcarServicio(idServicio);
     if (_presenceTimer == null && _idConductorPresencia > 0) {
       iniciarPresencia(_idConductorPresencia);
     } else {
@@ -458,6 +503,7 @@ class RideProvider extends ChangeNotifier {
 
   void _stopGps() {
     _idServicioGps = 0;
+    ForegroundServiceManager.marcarServicio(null);
     _reiniciarTimerPresencia();
   }
 
@@ -656,6 +702,17 @@ class RideProvider extends ChangeNotifier {
     }
     return null;
   }
+
+  Future<ApiResponse> obtenerPreferenciasServicio(int idServicio) =>
+      _api.preferenciasServicio(
+        idServicio,
+        _idConductorPresencia > 0 ? _idConductorPresencia : (_activeRide?.idConductor ?? 0),
+      );
+
+  Future<ApiResponse> obtenerRecorrido(int idServicio) => _api.recorrido(
+        idServicio,
+        _idConductorPresencia > 0 ? _idConductorPresencia : (_activeRide?.idConductor ?? 0),
+      );
 
   /// Limpia la solicitud ofrecida (al ignorarla o cerrarla) para que no se
   /// vuelva a mostrar la tarjeta.

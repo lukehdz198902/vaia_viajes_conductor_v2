@@ -1,14 +1,15 @@
+import 'dart:math' as math;
 import '../services/foto_util.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../models/parada_model.dart';
+import '../models/recorrido_model.dart';
 import '../models/servicio_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
-import '../services/directions_service.dart';
 import '../services/marker_icons.dart';
 import '../widgets/ruta_timeline.dart';
 
@@ -27,8 +28,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   List<ParadaModel> _paradas = [];
   List<Map<String, dynamic>> _mensajes = [];
   bool _loading = true;
+  GoogleMapController? _mapCtrl;
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
+  String? _recorridoMensaje;
 
   @override
   void didChangeDependencies() {
@@ -113,34 +116,64 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       ));
     }
     if (mounted) setState(() => _markers..clear()..addAll(markers));
-
-    if (latD == null || lngD == null) return;
-    final puntosParadas = paradas
-        .map((p) => (double.tryParse(p.lat), double.tryParse(p.lng)))
-        .where((e) => e.$1 != null && e.$2 != null)
-        .map((e) => LatLng(e.$1!, e.$2!))
-        .toList();
-    final ruta = await DirectionsService.ruta(
-      origen: LatLng(latO, lngO),
-      destino: LatLng(latD, lngD),
-      paradas: puntosParadas,
-    );
     if (!mounted) return;
-    if (ruta != null && ruta.puntos.isNotEmpty) {
-      setState(() {
-        _polylines
-          ..clear()
-          ..add(Polyline(
-            polylineId: const PolylineId('ruta'),
-            points: ruta.puntos,
-            color: VaiaColors.primary,
-            width: 5,
-            jointType: JointType.round,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-          ));
-      });
+
+    RecorridoModel recorrido;
+    try {
+      final res = await context.read<RideProvider>().obtenerRecorrido(s.id);
+      recorrido = RecorridoModel.fromRows(res.list);
+    } catch (_) {
+      recorrido = const RecorridoModel(
+        disponible: false,
+        mensaje: 'No se pudo cargar el recorrido real.',
+        puntos: [],
+      );
     }
+    if (!mounted) return;
+
+    setState(() {
+      _polylines.clear();
+      if (recorrido.tieneRuta) {
+        _polylines.add(Polyline(
+          polylineId: const PolylineId('recorrido_real'),
+          points: recorrido.puntos,
+          color: VaiaColors.primary,
+          width: 5,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ));
+      }
+      if (!recorrido.disponible) {
+        _recorridoMensaje = recorrido.mensaje ?? 'El recorrido no esta disponible.';
+      } else if (!recorrido.tieneRuta) {
+        _recorridoMensaje = recorrido.mensaje ?? 'No hay puntos de recorrido registrados.';
+      } else {
+        _recorridoMensaje = null;
+      }
+    });
+    _ajustarMapaRuta();
+  }
+
+  void _ajustarMapaRuta() {
+    if (_mapCtrl == null) return;
+    final puntos = <LatLng>[
+      ..._markers.map((m) => m.position),
+      ..._polylines.expand((p) => p.points),
+    ];
+    if (puntos.length < 2) return;
+    var minLat = puntos.first.latitude, maxLat = puntos.first.latitude;
+    var minLng = puntos.first.longitude, maxLng = puntos.first.longitude;
+    for (final p in puntos) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
+    _mapCtrl!.animateCamera(CameraUpdate.newLatLngBounds(
+      LatLngBounds(southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)),
+      50,
+    ));
   }
 
   @override
@@ -156,6 +189,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   padding: const EdgeInsets.all(12),
                   children: [
                     _mapa(s),
+                    if (_recorridoMensaje != null) ...[
+                      const SizedBox(height: 8),
+                      _avisoRecorrido(),
+                    ],
                     const SizedBox(height: 12),
                     _encabezado(s),
                     const SizedBox(height: 12),
@@ -196,6 +233,30 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         ],
       );
 
+  Widget _avisoRecorrido() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: VaiaColors.primaryGhost,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.route_rounded, size: 17, color: VaiaColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _recorridoMensaje!,
+              style: const TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _mapa(Servicio s) {
     final latO = double.tryParse(s.latOrigen ?? '');
     final lngO = double.tryParse(s.lngOrigen ?? '');
@@ -206,6 +267,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         height: 200,
         child: GoogleMap(
           initialCameraPosition: CameraPosition(target: LatLng(latO, lngO), zoom: 13),
+          onMapCreated: (c) {
+            _mapCtrl = c;
+            _ajustarMapaRuta();
+          },
           markers: _markers,
           polylines: _polylines,
           zoomControlsEnabled: false,

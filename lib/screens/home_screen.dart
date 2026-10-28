@@ -13,9 +13,11 @@ import '../providers/ride_provider.dart';
 import '../services/api_service.dart';
 import '../services/bubble_overlay.dart';
 import '../services/marker_icons.dart';
+import '../services/sound_service.dart';
 import '../widgets/vaia_widgets.dart';
 import '../widgets/email_verification_sheet.dart';
 import '../widgets/onboarding_checklist.dart';
+import '../widgets/app_tour_dialog.dart';
 import '../providers/profile_provider.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -50,6 +52,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Position? _miPosicion;
   StreamSubscription<Position>? _posSub;
   bool _siguiendo = true;
+  double _velocidadKmh = 0;
+  DateTime? _ultimaMuestraVelocidad;
+  DateTime? _ultimoAvisoVelocidad;
+  Position? _posVelocidadAnterior;
+  DateTime? _fechaVelocidadAnterior;
+  Timer? _velocidadTimer;
 
   /// Pide permiso de ubicacion, centra el mapa en el conductor y sigue su
   /// movimiento con un stream de posiciones.
@@ -57,18 +65,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final ride = context.read<RideProvider>();
     final ok = await ride.asegurarPermisoUbicacion();
     if (!ok || !mounted) return;
+
+    Position? pos;
     try {
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 12),
+        ),
       );
-      if (mounted) {
-        setState(() {
-          _miPosicion = pos;
-          _actualizarMarcadorConductor();
-        });
-        _centrarEnConductor();
-      }
-    } catch (_) {}
+    } catch (_) {
+      pos = await Geolocator.getLastKnownPosition();
+    }
+    if (pos != null && mounted) {
+      setState(() {
+        _miPosicion = pos;
+        _actualizarMarcadorConductor();
+      });
+      _actualizarVelocidad(pos);
+      _centrarEnConductor();
+    }
 
     _posSub?.cancel();
     _posSub = Geolocator.getPositionStream(
@@ -79,14 +95,59 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _miPosicion = pos;
         _actualizarMarcadorConductor();
       });
+      _actualizarVelocidad(pos);
       if (_siguiendo) _centrarEnConductor();
     });
+  }
+
+  void _actualizarVelocidad(Position pos) {
+    final ahora = DateTime.now();
+    double? kmh;
+    if (pos.speed.isFinite && pos.speed >= 0) {
+      kmh = pos.speed * 3.6;
+    }
+
+    final anterior = _posVelocidadAnterior;
+    final fechaAnterior = _fechaVelocidadAnterior;
+    if ((kmh == null || kmh <= 0.5) && anterior != null && fechaAnterior != null) {
+      final segundos = ahora.difference(fechaAnterior).inMilliseconds / 1000.0;
+      if (segundos > 0.75 && segundos < 12) {
+        final metros = Geolocator.distanceBetween(
+          anterior.latitude,
+          anterior.longitude,
+          pos.latitude,
+          pos.longitude,
+        );
+        if (metros > 2) kmh = (metros / segundos) * 3.6;
+      }
+    }
+
+    _posVelocidadAnterior = pos;
+    _fechaVelocidadAnterior = ahora;
+
+    if (kmh == null || !kmh.isFinite) return;
+    final valor = kmh.clamp(0, 250).toDouble();
+    _ultimaMuestraVelocidad = ahora;
+    setState(() => _velocidadKmh = valor);
+    _evaluarExcesoVelocidad(ahora);
+  }
+
+  void _evaluarExcesoVelocidad(DateTime ahora) {
+    if (_velocidadKmh > 85) {
+      final ultimo = _ultimoAvisoVelocidad;
+      if (ultimo == null || ahora.difference(ultimo) >= const Duration(seconds: 10)) {
+        _ultimoAvisoVelocidad = ahora;
+        SoundService.excesoVelocidad();
+      }
+    } else if (_velocidadKmh < 82) {
+      _ultimoAvisoVelocidad = null;
+    }
   }
 
   void _centrarEnConductor() {
     final p = _miPosicion;
     if (p == null) return;
-    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(p.latitude, p.longitude), 16));
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(p.latitude, p.longitude), 15.5));
   }
 
   void _actualizarMarcadorConductor() {
@@ -217,6 +278,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ride.iniciarPresencia(auth.userId);
       await context.read<ProfileProvider>().loadUnidades(auth.userId);
       if (!mounted) return;
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (!mounted) return;
+      await mostrarTourConductor(context);
+      if (!mounted) return;
+      await _verificarContactoEmergencia(auth);
+      if (!mounted) return;
       await _promptEmailVerification(auth);
       if (!mounted) return;
       await _seleccionarUnidadPredeterminada();
@@ -245,6 +312,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             setState(() => _horaDemanda = h);
             _cargarMapa();
           }
+        }
+      });
+      _velocidadTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+        if (!mounted) return;
+        final ultima = _ultimaMuestraVelocidad;
+        if (ultima != null &&
+            DateTime.now().difference(ultima) > const Duration(seconds: 5) &&
+            _velocidadKmh > 0) {
+          setState(() => _velocidadKmh = 0);
+          _evaluarExcesoVelocidad(DateTime.now());
         }
       });
     });
@@ -383,12 +460,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await EmailVerificationSheet.mostrar(context);
   }
 
-  @override
   void _onAuthChanged() {
     if (!mounted) return;
-    context.read<RideProvider>().setOnline(context.read<AuthProvider>().isOnline);
+    final auth = context.read<AuthProvider>();
+    final ride = context.read<RideProvider>();
+    ride.setOnline(auth.isOnline);
+    if (auth.isLoggedIn && auth.userId > 0) {
+      ride.startPolling(auth.userId);
+      ride.iniciarPresencia(auth.userId);
+    }
   }
 
+  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _authRef?.removeListener(_onAuthChanged);
@@ -397,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _batteryTimer?.cancel();
     WakelockPlus.disable();
     _horaTimer?.cancel();
+    _velocidadTimer?.cancel();
     _resumenTimer?.cancel();
     _ride?.stopPolling();
     _ride?.detenerPresencia();
@@ -453,11 +537,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Inicio'),
             BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Historial'),
+            BottomNavigationBarItem(icon: Icon(Icons.insights_rounded), label: 'Demanda'),
             BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Perfil'),
             BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Ganancias'),
           ],
           onTap: (i) {
             if (i == 0) return;
+            // La demanda se puede consultar sin desconectarse.
+            if (i == 2) {
+              _abrirDemandaSheet();
+              return;
+            }
             // Conectado: solo se esperan servicios. Para otra seccion hay que
             // desconectarse primero.
             if (auth.isOnline) {
@@ -466,8 +556,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
             switch (i) {
               case 1: Navigator.pushNamed(context, '/history');
-              case 2: Navigator.pushNamed(context, '/profile');
-              case 3: Navigator.pushNamed(context, '/earnings');
+              case 3: Navigator.pushNamed(context, '/profile');
+              case 4: Navigator.pushNamed(context, '/earnings');
             }
           },
         ),
@@ -646,89 +736,86 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Selectores de dia y hora para consultar las zonas con mas solicitudes
-  /// en un radio de 10 km alrededor de la ubicacion del conductor.
-  Widget _filtrosDemanda() {
-    final dias = <int?, String>{null: 'Dia', 1: 'Lun', 2: 'Mar', 3: 'Mie', 4: 'Jue', 5: 'Vie', 6: 'Sab', 7: 'Dom'};
-    final horas = <int?, String>{null: 'Hora actual'};
-    for (var h = 0; h < 24; h++) {
-      horas[h] = '${h.toString().padLeft(2, '0')}h';
-    }
-    Widget dd<T>(T value, Map<T, String> items, ValueChanged<T?> on) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: VaiaColors.surface,
-            borderRadius: BorderRadius.circular(VaiaRadius.md),
-            border: Border.all(color: VaiaColors.border),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<T>(
-              value: value,
-              isDense: true,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.textPrimary),
-              items: items.entries.map((e) => DropdownMenuItem<T>(value: e.key, child: Text(e.value))).toList(),
-              onChanged: on,
-            ),
-          ),
-        );
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      dd<int?>(_diaDemanda, dias, (v) { setState(() => _diaDemanda = v); _cargarMapa(); }),
-      const SizedBox(width: 6),
-      dd<int?>(_horaDemanda, horas, (v) { setState(() => _horaDemanda = v); _cargarMapa(); }),
-    ]);
-  }
-
-  Widget _botonDemanda() => Material(
-        color: VaiaColors.surface,
-        elevation: 3,
-        borderRadius: BorderRadius.circular(VaiaRadius.md),
-        child: InkWell(
-          onTap: _abrirDemandaSheet,
-          borderRadius: BorderRadius.circular(VaiaRadius.md),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.insights_rounded, size: 16, color: VaiaColors.primary),
-              SizedBox(width: 6),
-              Text('Demanda', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.primary)),
-            ]),
-          ),
-        ),
-      );
-
   Future<void> _abrirDemandaSheet() async {
     final p = _miPosicion;
     final res = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: VaiaColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (_) => _DemandaSheet(lat: p?.latitude, lng: p?.longitude, diaSel: _diaDemanda, horaSel: _horaDemanda),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.86,
+        child: _DemandaSheet(lat: p?.latitude, lng: p?.longitude),
+      ),
     );
     if (res == null || !mounted) return;
-    if (res['ahora'] == true) {
-      setState(() {
-        _horaManual = false;
-        _diaDemanda = null;
-        _horaActual = DateTime.now().hour;
-        _horaDemanda = _horaActual;
-      });
-    } else {
-      setState(() {
-        _horaManual = true;
-        _diaDemanda = res['dia'] as int?;
-        _horaDemanda = res['hora'] as int?;
-      });
-    }
+    final dia = res['dia'] as int?;
+    final hora = res['hora'] as int?;
+    if (dia == null || hora == null) return;
+    final ahora = DateTime.now();
+    setState(() {
+      // Si el conductor elige el dia y la hora actuales, el mapa puede seguir
+      // actualizandose solo cuando cambie la hora.
+      _horaManual = !(dia == ahora.weekday && hora == ahora.hour);
+      _diaDemanda = dia;
+      _horaDemanda = hora;
+    });
     _cargarMapa();
+    const nombres = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+        'Mostrando demanda de ${nombres[dia - 1]} a las ${hora.toString().padLeft(2, '0')}:00',
+      ),
+      backgroundColor: VaiaColors.primary,
+      behavior: SnackBarBehavior.floating,
+      duration: const Duration(seconds: 2),
+    ));
   }
 
+
+  /// El conductor no puede conectarse sin un contacto de emergencia.
+  Future<bool> _verificarContactoEmergencia(AuthProvider auth) async {
+    try {
+      final res = await _api.obtenerContactoEmergencia(auth.userId);
+      if (!res.ok) return true;
+      if (res.list != null && res.list!.isNotEmpty) return true;
+    } catch (_) {
+      return true;
+    }
+    if (auth.isOnline) {
+      try { await auth.toggleOnline(); } catch (_) {}
+    }
+    if (!mounted) return false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.health_and_safety_outlined, color: VaiaColors.danger, size: 38),
+        title: const Text('Contacto de emergencia obligatorio'),
+        content: const Text(
+          'Antes de conectarte debes registrar al menos un contacto de emergencia. Es necesario para poder ayudarte si activas un SOS.',
+          style: TextStyle(fontSize: 13.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, '/settings');
+            },
+            child: const Text('Configurar ahora'),
+          ),
+        ],
+      ),
+    );
+    return false;
+  }
   Widget _buildIdleView(BuildContext context, AuthProvider auth, RideProvider ride) {
     return Stack(
       children: [
         // Mapa con las zonas de mayor demanda y de conexion de pasajeros
         GoogleMap(
-          initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 12),
+          initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 14.5),
           onMapCreated: (c) {
             _mapController = c;
             _centrarEnConductor();
@@ -743,10 +830,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
         // Estado de conexion (socket) y ultima ubicacion enviada al servidor
         Positioned(top: 10, left: 10, child: _chipEstado(ride)),
-        // Filtros de demanda por dia/hora (zonas con mas solicitudes en 10 km)
-        Positioned(top: 54, left: 10, child: _filtrosDemanda()),
-        // Boton para ver el grafico de demanda por dia y hora
-        Positioned(top: 92, left: 10, child: _botonDemanda()),
         // Boton para ocultar/mostrar las tarjetas y ver el mapa mas amplio
         Positioned(
           top: 10,
@@ -770,6 +853,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
         ),
+        Positioned(
+          left: 14,
+          bottom: _ocultarPaneles ? 70 : 122,
+          child: _indicadorVelocidad(),
+        ),
         // Boton para centrar y seguir al conductor en el mapa
         Positioned(
           right: 14,
@@ -786,11 +874,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
         ),
         if (!_ocultarPaneles) ...[
-          const Positioned(top: 8, left: 0, right: 0, child: OnboardingChecklist()),
+          const Positioned(top: 64, left: 0, right: 0, child: OnboardingChecklist()),
           Positioned(bottom: 14, left: 14, right: 14, child: _estadoCard(context, auth)),
         ] else
           Positioned(bottom: 14, left: 14, child: _leyendaMapa()),
       ],
+    );
+  }
+
+  Widget _indicadorVelocidad() {
+    final excede = _velocidadKmh > 85;
+    final velocidad = _velocidadKmh.round();
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: excede ? VaiaColors.danger : Colors.white.withValues(alpha: 0.22),
+          width: excede ? 1.6 : 1,
+        ),
+        boxShadow: VaiaShadows.card,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$velocidad',
+            style: TextStyle(
+              fontSize: 24,
+              height: 1,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.8,
+              color: excede ? VaiaColors.danger : Colors.white,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            'km/h',
+            style: TextStyle(
+              fontSize: 9,
+              height: 1,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: excede ? VaiaColors.danger : Colors.white70,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1011,16 +1143,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
-                      ride.ultimaUbicacion != null ? Icons.location_on_rounded : Icons.location_searching_rounded,
+                      ride.ultimaUbicacion != null
+                          ? Icons.location_on_rounded
+                          : (ride.errorUbicacion != null ? Icons.location_off_rounded : Icons.location_searching_rounded),
                       size: 14,
-                      color: ride.ultimaUbicacion != null ? VaiaColors.onlineGreen : VaiaColors.textMuted,
+                      color: ride.ultimaUbicacion != null
+                          ? VaiaColors.onlineGreen
+                          : (ride.errorUbicacion != null ? VaiaColors.danger : VaiaColors.textMuted),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      ride.ultimaUbicacion != null
-                          ? 'Ultima ubicacion enviada: ${_fmtHora(ride.ultimaUbicacion!)}'
-                          : 'Enviando ubicacion...',
-                      style: const TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+                    Flexible(
+                      child: Text(
+                        ride.ultimaUbicacion != null
+                            ? 'Ultima ubicacion enviada: ${_fmtHora(ride.ultimaUbicacion!)}'
+                            : (ride.errorUbicacion ?? 'Enviando ubicacion...'),
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: ride.ultimaUbicacion == null && ride.errorUbicacion != null
+                              ? VaiaColors.danger
+                              : VaiaColors.textSecondary,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -1033,8 +1176,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   onPressed: () async {
                     final auth = context.read<AuthProvider>();
                     final messenger = ScaffoldMessenger.of(context);
-                    // El GPS es obligatorio para poder conectarse.
+                    // El contacto de emergencia y el GPS son obligatorios.
                     if (!auth.isOnline) {
+                      final okContacto = await _verificarContactoEmergencia(auth);
+                      if (!okContacto || !mounted) return;
                       final okGps = await _verificarGps();
                       if (!okGps || !mounted) return;
                     }
@@ -1330,133 +1475,555 @@ class _UnidadPickerSheet extends StatelessWidget {
   }
 }
 
-/// Grafico de demanda por dia de la semana y hora (matriz 7x24). Cada celda
-/// muestra cuantos servicios se solicitaron a esa hora/dia en los ultimos
-/// 30 dias dentro de 10 km. Al tocar una celda se filtra el mapa de calor.
+/// Demanda historica por dia y hora (matriz 7x24). Cada dia se muestra en una
+/// pagina deslizable y dentro de ella las 24 horas aparecen como barras
+/// proporcionales. Al tocar una barra se filtra el mapa de calor.
 class _DemandaSheet extends StatefulWidget {
   final double? lat;
   final double? lng;
-  final int? diaSel;
-  final int? horaSel;
-  const _DemandaSheet({this.lat, this.lng, this.diaSel, this.horaSel});
+  const _DemandaSheet({this.lat, this.lng});
   @override
   State<_DemandaSheet> createState() => _DemandaSheetState();
 }
 
 class _DemandaSheetState extends State<_DemandaSheet> {
+  static const _nombresDias = [
+    'Lunes',
+    'Martes',
+    'Miercoles',
+    'Jueves',
+    'Viernes',
+    'Sabado',
+    'Domingo',
+  ];
   final _api = ApiService();
+  late final PageController _pageCtrl;
+  late int _dia;
   bool _cargando = true;
+  bool _error = false;
   List<List<int>> _m = List.generate(7, (_) => List.filled(24, 0));
   int _max = 0;
 
   @override
   void initState() {
     super.initState();
+    _dia = DateTime.now().weekday;
+    _pageCtrl = PageController(initialPage: _dia - 1);
     _cargar();
   }
 
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargar() async {
+    if (mounted) {
+      setState(() {
+        _cargando = true;
+        _error = false;
+      });
+    }
     try {
       final r = await _api.demandaPorDiaHora(
-          lat: widget.lat?.toString(), lng: widget.lng?.toString(), radioKm: 10, dias: 30);
+        lat: widget.lat?.toString(),
+        lng: widget.lng?.toString(),
+        radioKm: 10,
+        dias: 30,
+      );
+      if (!r.ok) {
+        if (mounted) {
+          setState(() {
+            _cargando = false;
+            _error = true;
+          });
+        }
+        return;
+      }
       final m = List.generate(7, (_) => List.filled(24, 0));
       int mx = 0;
-      if (r.ok && r.list != null) {
-        for (final e in r.list!) {
-          final mm = Map<String, dynamic>.from(e as Map);
-          final d = int.tryParse(mm['dia']?.toString() ?? '') ?? 0;
-          final h = int.tryParse(mm['hora']?.toString() ?? '') ?? 0;
-          final t = int.tryParse(mm['total']?.toString() ?? '') ?? 0;
-          if (d >= 1 && d <= 7 && h >= 0 && h <= 23) {
-            m[d - 1][h] = t;
-            if (t > mx) mx = t;
-          }
+      for (final e in (r.list ?? [])) {
+        final mm = Map<String, dynamic>.from(e as Map);
+        final d = int.tryParse(mm['dia']?.toString() ?? '') ?? 0;
+        final h = int.tryParse(mm['hora']?.toString() ?? '') ?? 0;
+        final t = int.tryParse(mm['total']?.toString() ?? '') ?? 0;
+        if (d >= 1 && d <= 7 && h >= 0 && h <= 23) {
+          m[d - 1][h] = t;
+          if (t > mx) mx = t;
         }
       }
-      if (mounted) setState(() { _m = m; _max = mx; _cargando = false; });
+      if (mounted) {
+        setState(() {
+          _m = m;
+          _max = mx;
+          _cargando = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _cargando = false);
+      if (mounted) {
+        setState(() {
+          _cargando = false;
+          _error = true;
+        });
+      }
     }
   }
 
-  Color _color(int v) {
-    if (v <= 0 || _max <= 0) return VaiaColors.bgSubtle;
-    final r = (v / _max).clamp(0.0, 1.0);
-    return Color.lerp(VaiaColors.primary.withValues(alpha: 0.18), VaiaColors.danger, r)!;
+  void _irADia(int delta) {
+    final destino = (_dia + delta).clamp(1, 7);
+    if (destino == _dia) return;
+    _pageCtrl.animateToPage(
+      destino - 1,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    const dias = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom'];
+    final hoy = DateTime.now().weekday;
+    final esHoy = _dia == hoy;
+    final horaActual = DateTime.now().hour;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Demanda por dia y hora', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            const Text(
-              'Servicios solicitados en los ultimos 30 dias a menos de 10 km de tu ubicacion. Toca una celda para ver esa zona en el mapa de calor.',
-              style: TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+      top: false,
+      child: Column(
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: VaiaColors.borderStrong,
+              borderRadius: BorderRadius.circular(99),
             ),
-            const SizedBox(height: 12),
-            if (_cargando)
-              const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator()))
-            else ...[
-              Row(children: [
-                const SizedBox(width: 24),
-                for (var h = 0; h < 24; h++)
-                  Expanded(
-                    child: Text(h % 3 == 0 ? '$h' : '',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 7.5, color: VaiaColors.textMuted)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 8, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: VaiaColors.primaryGhost,
+                    borderRadius: BorderRadius.circular(VaiaRadius.md),
                   ),
-              ]),
-              for (var d = 0; d < 7; d++)
-                Row(children: [
-                  SizedBox(
-                    width: 24,
-                    child: Text(dias[d],
-                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: VaiaColors.textSecondary)),
+                  child: const Icon(
+                    Icons.insights_rounded,
+                    size: 20,
+                    color: VaiaColors.primary,
                   ),
-                  for (var h = 0; h < 24; h++)
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => Navigator.pop(context, {'dia': d + 1, 'hora': h}),
-                        child: Container(
-                          height: 18,
-                          margin: const EdgeInsets.all(0.6),
-                          decoration: BoxDecoration(
-                            color: _color(_m[d][h]),
-                            borderRadius: BorderRadius.circular(2),
-                            border: (widget.diaSel == d + 1 && widget.horaSel == h)
-                                ? Border.all(color: VaiaColors.textPrimary, width: 1.2)
-                                : null,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Demanda por dia y hora',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Ultimos 30 dias - 10 km a la redonda',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: VaiaColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: VaiaColors.textMuted,
+                  ),
+                  tooltip: 'Cerrar',
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 2),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: _dia > 1 ? () => _irADia(-1) : null,
+                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 17),
+                  color: VaiaColors.textSecondary,
+                  tooltip: 'Dia anterior',
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _nombresDias[_dia - 1],
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
+                          if (esHoy) ...[
+                            const SizedBox(width: 7),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: VaiaColors.primaryGhost,
+                                borderRadius: BorderRadius.circular(
+                                  VaiaRadius.pill,
+                                ),
+                              ),
+                              child: const Text(
+                                'HOY',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: VaiaColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        esHoy
+                            ? 'Hora actual ${horaActual.toString().padLeft(2, '0')}:00 - Desliza para cambiar de dia'
+                            : 'Desliza para cambiar de dia',
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: VaiaColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: _dia < 7 ? () => _irADia(1) : null,
+                  icon: const Icon(Icons.arrow_forward_ios_rounded, size: 17),
+                  color: VaiaColors.textSecondary,
+                  tooltip: 'Dia siguiente',
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _cargando
+                ? const Center(child: CircularProgressIndicator())
+                : _error
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.cloud_off_rounded,
+                            size: 38,
+                            color: VaiaColors.textMuted,
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'No se pudo cargar la demanda',
+                            style: TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 6),
+                          TextButton.icon(
+                            onPressed: _cargar,
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('Reintentar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : _max == 0
+                ? const Center(
+                    child: Text(
+                      'Aun no hay datos de demanda en tu zona',
+                      style: TextStyle(color: VaiaColors.textSecondary),
+                    ),
+                  )
+                : PageView.builder(
+                    controller: _pageCtrl,
+                    itemCount: 7,
+                    onPageChanged: (i) => setState(() => _dia = i + 1),
+                    itemBuilder: (_, i) => _DemandaDayPage(
+                      valores: _m[i],
+                      max: _max,
+                      esHoy: i + 1 == hoy,
+                      horaActual: horaActual,
+                      onHora: (h) =>
+                          Navigator.pop(context, {'dia': i + 1, 'hora': h}),
+                    ),
+                  ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(18, 9, 18, 10),
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: VaiaColors.border)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Menos',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: VaiaColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    for (var i = 0; i < 5; i++)
+                      Container(
+                        width: 22,
+                        height: 8,
+                        margin: const EdgeInsets.only(right: 3),
+                        decoration: BoxDecoration(
+                          color: _demandaColor(
+                            (_max * (i + 1) / 5).ceil(),
+                            _max,
+                          ),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                      ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Mas',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: VaiaColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.touch_app_rounded,
+                      size: 14,
+                      color: VaiaColors.textMuted,
+                    ),
+                    SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        'Toca una barra para ver las zonas con mayor demanda en el mapa.',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: VaiaColors.textMuted,
                         ),
                       ),
                     ),
-                ]),
-              const SizedBox(height: 10),
-              Row(children: [
-                const Text('Menos', style: TextStyle(fontSize: 10, color: VaiaColors.textMuted)),
-                const SizedBox(width: 6),
-                for (var i = 0; i < 6; i++)
-                  Container(width: 16, height: 10, margin: const EdgeInsets.only(right: 2), color: _color(((i / 5) * _max).round())),
-                const SizedBox(width: 6),
-                const Text('Mas', style: TextStyle(fontSize: 10, color: VaiaColors.textMuted)),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, {'ahora': true}),
-                  child: const Text('Hora actual'),
+                  ],
                 ),
-              ]),
-            ],
-          ],
-        ),
+              ],
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+Color _demandaColor(int valor, int max) {
+  if (valor <= 0 || max <= 0) return VaiaColors.bgMuted;
+  final r = (valor / max).clamp(0.0, 1.0);
+  if (r < 0.5) {
+    return Color.lerp(VaiaColors.success, VaiaColors.warning, r * 2)!;
+  }
+  return Color.lerp(VaiaColors.warning, VaiaColors.danger, (r - 0.5) * 2)!;
+}
+
+class _DemandaDayPage extends StatefulWidget {
+  final List<int> valores;
+  final int max;
+  final bool esHoy;
+  final int horaActual;
+  final ValueChanged<int> onHora;
+  const _DemandaDayPage({
+    required this.valores,
+    required this.max,
+    required this.esHoy,
+    required this.horaActual,
+    required this.onHora,
+  });
+  @override
+  State<_DemandaDayPage> createState() => _DemandaDayPageState();
+}
+
+class _DemandaDayPageState extends State<_DemandaDayPage> {
+  static const double _itemExtent = 52;
+  late final ScrollController _scroll;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll = ScrollController();
+    if (widget.esHoy) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        final objetivo = ((widget.horaActual - 2).clamp(0, 23) * _itemExtent).toDouble();
+        _scroll.jumpTo(objetivo.clamp(0.0, _scroll.position.maxScrollExtent).toDouble());
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      itemExtent: _itemExtent,
+      itemCount: 24,
+      itemBuilder: (context, h) {
+        final valor = widget.valores[h];
+        final ratio = widget.max <= 0
+            ? 0.0
+            : (valor / widget.max).clamp(0.0, 1.0);
+        final color = _demandaColor(valor, widget.max);
+        final esAhora = widget.esHoy && h == widget.horaActual;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => widget.onHora(h),
+              borderRadius: BorderRadius.circular(VaiaRadius.md),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: esAhora
+                      ? VaiaColors.primaryGhost
+                      : VaiaColors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(VaiaRadius.md),
+                  border: Border.all(
+                    color: esAhora
+                        ? VaiaColors.primary.withValues(alpha: 0.38)
+                        : VaiaColors.border,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 54,
+                      child: Row(
+                        children: [
+                          if (esAhora) ...[
+                            Container(
+                              width: 5,
+                              height: 5,
+                              decoration: const BoxDecoration(
+                                color: VaiaColors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 3),
+                          ],
+                          Text(
+                            '${h.toString().padLeft(2, '0')}:00',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: esAhora
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              color: esAhora
+                                  ? VaiaColors.primary
+                                  : VaiaColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SizedBox(
+                        height: 20,
+                        child: LayoutBuilder(
+                          builder: (context, c) {
+                            final ancho = valor <= 0
+                                ? 0.0
+                                : c.maxWidth * ratio.clamp(0.06, 1.0);
+                            return Stack(
+                              alignment: Alignment.centerLeft,
+                              children: [
+                                Container(
+                                  height: 20,
+                                  decoration: BoxDecoration(
+                                    color: VaiaColors.bgMuted,
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                ),
+                                if (ancho > 0)
+                                  Container(
+                                    width: ancho,
+                                    height: 20,
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          color.withValues(alpha: 0.72),
+                                          color,
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 34,
+                      child: Text(
+                        '$valor',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: valor > 0
+                              ? VaiaColors.textPrimary
+                              : VaiaColors.textMuted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 17,
+                      color: VaiaColors.textMuted,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

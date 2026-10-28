@@ -195,6 +195,9 @@ class ApiService {
   Future<ApiResponse> guardarContactoEmergencia(Map<String, dynamic> data) =>
       post('${ApiConfig.conductorEndpoint}/GuardarContactoEmergencia', data);
 
+  Future<ApiResponse> preferenciasServicio(int idServicio, int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/PreferenciasServicio?idServicio=$idServicio&idConductor=$idConductor');
+
   // ─── GAMAS / PREFERENCIA DE PAGO ─────────────────────────────
 
   Future<ApiResponse> listarGamas() => get('${ApiConfig.conductorEndpoint}/ListarGamas');
@@ -210,9 +213,10 @@ class ApiService {
   Future<ApiResponse> darDeBaja(int idConductor, String pass) =>
       post('${ApiConfig.conductorEndpoint}/DarDeBaja', {'idConductor': idConductor, 'pass': pass});
 
-  Future<ApiResponse> actualizarUbicacion(int idConductor, String lat, String lng) =>
+  Future<ApiResponse> actualizarUbicacion(int idConductor, String lat, String lng, {int? idServicio}) =>
       post('${ApiConfig.conductorEndpoint}/ActualizarUbicacion', {
         'idConductor': idConductor, 'lat': lat, 'lng': lng,
+        if (idServicio != null && idServicio > 0) 'idServicio': idServicio,
       });
 
   Future<ApiResponse> cambiarEstatus(int idConductor, String estatus,
@@ -400,6 +404,9 @@ class ApiService {
 
   Future<ApiResponse> detalleViaje(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/DetalleViaje?idServicio=$idServicio&idConductor=$idConductor');
+
+  Future<ApiResponse> recorrido(int idServicio, int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/Recorrido?idServicio=$idServicio&idConductor=$idConductor');
 
   Future<ApiResponse> obtenerSemanaCorte(int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/ObtenerSemanaCorte?idConductor=$idConductor');

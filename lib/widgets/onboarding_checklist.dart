@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -8,8 +9,39 @@ import '../providers/profile_provider.dart';
 
 /// Tarjeta de requisitos del conductor: le indica que le falta subir
 /// documentacion, registrar una unidad o esperar la validacion.
-class OnboardingChecklist extends StatelessWidget {
+class OnboardingChecklist extends StatefulWidget {
   const OnboardingChecklist({super.key});
+
+  @override
+  State<OnboardingChecklist> createState() => _OnboardingChecklistState();
+}
+
+class _OnboardingChecklistState extends State<OnboardingChecklist> {
+  Timer? _minimizarTimer;
+  bool _minimizado = false;
+
+  @override
+  void dispose() {
+    _minimizarTimer?.cancel();
+    super.dispose();
+  }
+
+  void _programarMinimizacion() {
+    _minimizarTimer?.cancel();
+    _minimizarTimer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      _minimizarTimer = null;
+      setState(() => _minimizado = true);
+    });
+  }
+
+  void _expandir() {
+    if (_minimizarTimer?.isActive == true) return;
+    _minimizarTimer?.cancel();
+    _minimizarTimer = null;
+    setState(() => _minimizado = false);
+    _programarMinimizacion();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,40 +52,120 @@ class OnboardingChecklist extends StatelessWidget {
 
     final docs = _estadoDocumentacion(conductor);
     final unidad = _estadoUnidad(profile.unidades);
+    final listo = docs.ok && unidad.ok;
 
-    // Todo listo: mostrar aviso de que ya puede laborar
-    if (docs.ok && unidad.ok) {
-      return Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF22C55E)]),
-          borderRadius: BorderRadius.circular(VaiaRadius.lg),
-          boxShadow: [BoxShadow(color: const Color(0xFF16A34A).withValues(alpha: 0.28), blurRadius: 16, offset: const Offset(0, 6))],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), shape: BoxShape.circle),
-              child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Ya puedes laborar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
-                  SizedBox(height: 2),
-                  Text('Tu documentacion y tu unidad estan aprobadas.', style: TextStyle(color: Colors.white, fontSize: 12.5)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+    if (!listo) {
+      _minimizarTimer?.cancel();
+      _minimizarTimer = null;
+      if (_minimizado) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _minimizado = false);
+        });
+      }
+      return _checklistCard(context, docs, unidad);
     }
 
+    if (!_minimizado && _minimizarTimer == null) {
+      _programarMinimizacion();
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.easeInOutCubic,
+      alignment: Alignment.topRight,
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final scale = Tween<double>(begin: 0.86, end: 1).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutBack),
+          );
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(scale: scale, child: child),
+          );
+        },
+        child: _minimizado ? _checkCircle() : _readyCard(),
+      ),
+    );
+  }
+
+  Widget _checkCircle() {
+    return Align(
+      key: const ValueKey('listo_circulo'),
+      alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _expandir,
+            customBorder: const CircleBorder(),
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF22C55E)]),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF16A34A).withValues(alpha: 0.32),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.check_rounded, color: Colors.white, size: 27),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _readyCard() {
+    return Container(
+      key: const ValueKey('listo_tarjeta'),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF16A34A), Color(0xFF22C55E)]),
+        borderRadius: BorderRadius.circular(VaiaRadius.lg),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF16A34A).withValues(alpha: 0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.22), shape: BoxShape.circle),
+            child: const Icon(Icons.verified_rounded, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Ya puedes laborar',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
+                SizedBox(height: 2),
+                Text('Tu documentacion y tu unidad estan aprobadas.',
+                    style: TextStyle(color: Colors.white, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _checklistCard(BuildContext context, _Estado docs, _Estado unidad) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
       padding: const EdgeInsets.all(12),
@@ -70,12 +182,16 @@ class OnboardingChecklist extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(7),
-                decoration: BoxDecoration(color: VaiaColors.primaryGhost, borderRadius: BorderRadius.circular(VaiaRadius.sm)),
+                decoration: BoxDecoration(
+                  color: VaiaColors.primaryGhost,
+                  borderRadius: BorderRadius.circular(VaiaRadius.sm),
+                ),
                 child: const Icon(Icons.assignment_late_outlined, size: 16, color: VaiaColors.primary),
               ),
               const SizedBox(width: 10),
               const Expanded(
-                child: Text('Completa tu perfil para laborar', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+                child: Text('Completa tu perfil para laborar',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
               ),
             ],
           ),
@@ -232,5 +348,11 @@ class _Estado {
   final Color color;
   final IconData icono;
   final bool ok;
-  const _Estado({required this.titulo, required this.detalle, required this.color, required this.icono, required this.ok});
+  const _Estado({
+    required this.titulo,
+    required this.detalle,
+    required this.color,
+    required this.icono,
+    required this.ok,
+  });
 }

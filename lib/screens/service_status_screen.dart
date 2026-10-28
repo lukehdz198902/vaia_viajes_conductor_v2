@@ -3,15 +3,14 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
-import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/theme.dart';
+import '../models/recorrido_model.dart';
 import '../models/servicio_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ride_provider.dart';
-import '../services/directions_service.dart';
 import '../services/marker_icons.dart';
 import '../widgets/ruta_timeline.dart';
 import '../widgets/slide_to_confirm.dart';
@@ -39,8 +38,12 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
   GoogleMapController? _mapCtrl;
   final Set<Marker> _markers = {};
   final Set<Polyline> _polylines = {};
-  bool _trazando = false;
-  String _claveTrazo = '';
+  List<LatLng> _recorrido = const [];
+  Map<String, dynamic>? _prefsPasajero;
+  bool _cargandoPrefs = false;
+  Timer? _recorridoTimer;
+  bool _cargandoRecorrido = false;
+  String? _recorridoMensaje;
   int _ultimoPasoCamara = -99;
   RideProvider? _rideRef;
   String? _ultimoEstado;
@@ -55,8 +58,11 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       final s = _rideRef!.activeRide;
       if (s != null) {
         _rideRef!.listarParadas(s.id);
-        _trazarRuta();
+        _cargarPreferencias(s.id);
+        _actualizarMapa(forzar: true);
+        _cargarRecorrido();
       }
+      _recorridoTimer = Timer.periodic(const Duration(seconds: 12), (_) => _cargarRecorrido());
     });
   }
 
@@ -64,40 +70,41 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     if (!mounted) return;
     // Sonido al cambiar de estatus el servicio.
     final nuevo = context.read<RideProvider>().activeRide?.servicioEstatus;
-    if (nuevo != null && nuevo != _ultimoEstado) {
+    final cambioEstado = nuevo != _ultimoEstado;
+    if (nuevo != null && cambioEstado) {
       if (_ultimoEstado != null) SoundService.cambioEstatus();
       _ultimoEstado = nuevo;
     }
-    _trazarRuta();
+    if (cambioEstado) {
+      _actualizarMapa(forzar: true);
+      _cargarRecorrido();
+      final s = context.read<RideProvider>().activeRide;
+      if (s != null) _cargarPreferencias(s.id);
+    }
   }
 
   @override
   void dispose() {
     _rideRef?.removeListener(_onRideChanged);
+    _recorridoTimer?.cancel();
     _codeCtrl.dispose();
     super.dispose();
   }
 
   // ─── Ruta en el mapa ──────────────────────────────────────────
 
-  Future<void> _trazarRuta() async {
-    final ride = context.read<RideProvider>();
-    final s = ride.activeRide;
-    if (s == null || _trazando) return;
+  void _actualizarMapa({bool forzar = false}) {
+    final s = context.read<RideProvider>().activeRide;
+    if (s == null) return;
 
     final latD = double.tryParse(s.latDestino ?? '');
     final lngD = double.tryParse(s.lngDestino ?? '');
     final latO = double.tryParse(s.latOrigen ?? '');
     final lngO = double.tryParse(s.lngOrigen ?? '');
-    if (latD == null || lngD == null || latO == null || lngO == null) return;
+    if (latO == null || lngO == null) return;
 
     final origen = LatLng(latO, lngO);
-    final destino = LatLng(latD, lngD);
-    final enViaje = s.esEnViaje;
-
-    // Ruta: hacia el origen mientras no inicia; hacia el destino en viaje.
-    final inicio = enViaje ? origen : await _miPosicion(origen);
-    final fin = enViaje ? destino : origen;
+    final destino = (latD != null && lngD != null) ? LatLng(latD, lngD) : null;
 
     setState(() {
       _markers
@@ -108,62 +115,95 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
           icon: MarkerIcons.origin ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
           anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Origen', snippet: s.direccionOrigen ?? ''),
-        ))
-        ..add(Marker(
+        ));
+      if (destino != null) {
+        _markers.add(Marker(
           markerId: const MarkerId('destino'),
           position: destino,
           icon: MarkerIcons.destination ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRose),
           anchor: const Offset(0.5, 0.5),
           infoWindow: InfoWindow(title: 'Destino', snippet: s.direccionDestino ?? ''),
         ));
+      }
+
+      _polylines.clear();
+      if (s.esEnViaje && _recorrido.length >= 2) {
+        _polylines.add(Polyline(
+          polylineId: const PolylineId('recorrido_real'),
+          points: _recorrido,
+          color: VaiaColors.primary,
+          width: 5,
+          jointType: JointType.round,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+        ));
+      }
     });
 
-    final clave = '${s.id}|$enViaje';
-    final debeRetrazar = clave != _claveTrazo;
-    _claveTrazo = clave;
-
-    if (debeRetrazar || _polylines.isEmpty) {
-      _trazando = true;
-      final ruta = await DirectionsService.ruta(origen: inicio, destino: fin);
-      _trazando = false;
-      if (!mounted) return;
-      if (ruta != null && ruta.puntos.isNotEmpty) {
-        setState(() {
-          _polylines
-            ..clear()
-            ..add(Polyline(
-              polylineId: const PolylineId('ruta'),
-              points: ruta.puntos,
-              color: VaiaColors.primary,
-              width: 5,
-              jointType: JointType.round,
-              startCap: Cap.roundCap,
-              endCap: Cap.roundCap,
-            ));
-        });
-      }
-    }
-
     final paso = s.pasoActual;
-    if (_ultimoPasoCamara != paso) {
+    if (forzar || _ultimoPasoCamara != paso) {
       _ultimoPasoCamara = paso;
-      _ajustar(inicio, fin);
+      _ajustar(origen, destino ?? origen);
     }
   }
 
-  Future<LatLng> _miPosicion(LatLng fallback) async {
+  Future<void> _cargarRecorrido() async {
+    if (!mounted || _cargandoRecorrido) return;
+    final rideProv = context.read<RideProvider>();
+    final s = rideProv.activeRide;
+    if (s == null) return;
+
+    if (!s.esEnViaje) {
+      if (_recorrido.isNotEmpty || _recorridoMensaje != null) {
+        setState(() {
+          _recorrido = const [];
+          _recorridoMensaje = null;
+        });
+        _actualizarMapa();
+      }
+      return;
+    }
+
+    _cargandoRecorrido = true;
     try {
-      final pos = await Geolocator.getLastKnownPosition();
-      if (pos != null) return LatLng(pos.latitude, pos.longitude);
-    } catch (_) {}
-    return fallback;
+      final res = await rideProv.obtenerRecorrido(s.id);
+      if (!mounted) return;
+      final recorrido = RecorridoModel.fromRows(res.list);
+      final primeraVez = _recorrido.length < 2;
+      setState(() {
+        _recorrido = recorrido.puntos;
+        if (!recorrido.disponible) {
+          _recorridoMensaje = recorrido.mensaje ?? 'El recorrido no esta disponible.';
+        } else if (recorrido.puntos.length < 2) {
+          _recorridoMensaje = recorrido.mensaje ?? 'Aun no hay puntos suficientes del recorrido.';
+        } else {
+          _recorridoMensaje = null;
+        }
+      });
+      _actualizarMapa(forzar: primeraVez && recorrido.tieneRuta);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _recorridoMensaje = 'No se pudo cargar el recorrido real.');
+      }
+    } finally {
+      _cargandoRecorrido = false;
+    }
   }
 
   void _ajustar(LatLng a, LatLng b) {
     if (_mapCtrl == null) return;
+    final puntos = <LatLng>[a, b, ..._recorrido];
+    var minLat = puntos.first.latitude, maxLat = puntos.first.latitude;
+    var minLng = puntos.first.longitude, maxLng = puntos.first.longitude;
+    for (final p in puntos) {
+      minLat = math.min(minLat, p.latitude);
+      maxLat = math.max(maxLat, p.latitude);
+      minLng = math.min(minLng, p.longitude);
+      maxLng = math.max(maxLng, p.longitude);
+    }
     final bounds = LatLngBounds(
-      southwest: LatLng(math.min(a.latitude, b.latitude), math.min(a.longitude, b.longitude)),
-      northeast: LatLng(math.max(a.latitude, b.latitude), math.max(a.longitude, b.longitude)),
+      southwest: LatLng(minLat, minLng),
+      northeast: LatLng(maxLat, maxLng),
     );
     _mapCtrl!.animateCamera(CameraUpdate.newLatLngBounds(bounds, 70));
   }
@@ -227,7 +267,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     await ride.llegarAlOrigen(servicioId, conductorId);
     if (!mounted) return;
     setState(() { _isLlegando = false; _showCodeInput = true; });
-    _trazarRuta();
+    _actualizarMapa(forzar: true);
+    _cargarRecorrido();
   }
 
   Future<void> _iniciarViaje(RideProvider ride, int servicioId, int conductorId) async {
@@ -239,7 +280,8 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     setState(() => _isStarting = false);
     if (ok) {
       setState(() => _showCodeInput = false);
-      _trazarRuta();
+      _actualizarMapa(forzar: true);
+      _cargarRecorrido();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(ride.error ?? 'Codigo incorrecto'),
@@ -349,7 +391,10 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
                 target: LatLng(double.tryParse(s.latOrigen ?? '') ?? 26.0923, double.tryParse(s.lngOrigen ?? '') ?? -98.2789),
                 zoom: 13,
               ),
-              onMapCreated: (c) { _mapCtrl = c; _trazarRuta(); },
+              onMapCreated: (c) {
+                _mapCtrl = c;
+                _actualizarMapa(forzar: true);
+              },
               markers: _markers,
               polylines: _polylines,
               myLocationEnabled: true,
@@ -457,7 +502,13 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
 
           _tarjetaPasajero(s, isEnViaje),
           const SizedBox(height: 14),
+          _tarjetaPreferencias(),
+          const SizedBox(height: 14),
           _tarjetaRuta(s),
+          if (_recorridoMensaje != null) ...[
+            const SizedBox(height: 10),
+            _avisoRecorrido(),
+          ],
           const SizedBox(height: 14),
 
           // Navegacion
@@ -618,6 +669,107 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
     }
   }
 
+
+  Future<void> _cargarPreferencias(int idServicio) async {
+    if (_cargandoPrefs) return;
+    _cargandoPrefs = true;
+    try {
+      final res = await context.read<RideProvider>().obtenerPreferenciasServicio(idServicio);
+      if (!mounted) return;
+      if (res.ok && res.list != null && res.list!.isNotEmpty) {
+        final p = Map<String, dynamic>.from(res.list!.first as Map);
+        final disponible = p['disponible'] == true || p['disponible']?.toString() == '1';
+        setState(() => _prefsPasajero = disponible ? p : null);
+      }
+    } catch (_) {
+    } finally {
+      _cargandoPrefs = false;
+    }
+  }
+
+  Widget _tarjetaPreferencias() {
+    final p = _prefsPasajero;
+    if (p == null) return const SizedBox.shrink();
+    bool b(dynamic v) => v == true || v == 1 || v?.toString() == '1';
+    final configurado = b(p['configurado']);
+    if (!configurado) {
+      return _card(
+        child: Row(
+          children: [
+            const Icon(Icons.tune_rounded, color: VaiaColors.textMuted, size: 18),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text('El pasajero no configuro preferencias para este viaje.',
+                  style: TextStyle(fontSize: 12.5, color: VaiaColors.textSecondary)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final chips = <Widget>[];
+    Widget chip(IconData icon, String text) => Container(
+          margin: const EdgeInsets.only(right: 6, bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+          decoration: BoxDecoration(
+            color: VaiaColors.primaryGhost,
+            borderRadius: BorderRadius.circular(VaiaRadius.pill),
+            border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.22)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 13, color: VaiaColors.primary),
+            const SizedBox(width: 4),
+            Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: VaiaColors.textSecondary)),
+          ]),
+        );
+
+    chips.add(chip(Icons.music_note_rounded, b(p['musica']) ? 'Con musica' : 'Sin musica'));
+    chips.add(chip(Icons.ac_unit_rounded, b(p['aireacondicionado']) ? 'Aire encendido' : 'Aire apagado'));
+    if (b(p['ventanasabajo'])) chips.add(chip(Icons.window_rounded, 'Ventanas abajo'));
+    if (b(p['viajacomascotas'])) chips.add(chip(Icons.pets_rounded, 'Con mascotas'));
+    if (b(p['discapacidadauditiva'])) chips.add(chip(Icons.hearing_disabled_rounded, 'Disc. auditiva'));
+    if (b(p['discapacidadvisual'])) chips.add(chip(Icons.visibility_off_rounded, 'Disc. visual'));
+
+    final alergias = (p['alergias'] ?? '').toString().trim();
+    final discapacidad = (p['discapacidad'] ?? '').toString().trim();
+    final notas = (p['notas'] ?? '').toString().trim();
+
+    return _card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 18, color: VaiaColors.primary),
+              SizedBox(width: 8),
+              Text('Preferencias del pasajero',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800, color: VaiaColors.textPrimary)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(children: chips),
+          if (alergias.isNotEmpty) _prefDetalle('Alergias', alergias, Icons.warning_amber_rounded),
+          if (discapacidad.isNotEmpty) _prefDetalle('Apoyo requerido', discapacidad, Icons.accessible_rounded),
+          if (notas.isNotEmpty) _prefDetalle('Indicaciones', notas, Icons.edit_note_rounded),
+        ],
+      ),
+    );
+  }
+
+  Widget _prefDetalle(String label, String value, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: VaiaColors.textMuted),
+          const SizedBox(width: 6),
+          Text('$label: ', style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: VaiaColors.textMuted)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 12, color: VaiaColors.textSecondary))),
+        ],
+      ),
+    );
+  }
   Widget _tarjetaPasajero(Servicio s, bool isEnViaje) {
     return _card(
       child: Row(
@@ -663,6 +815,30 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
             _accionCircular(Icons.chat_bubble_rounded, VaiaColors.primary,
                 () => Navigator.pushNamed(context, '/chat', arguments: {'idServicio': s.id, 'conductorNombre': s.pasajeroNombreCompleto})),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _avisoRecorrido() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: VaiaColors.primaryGhost,
+        borderRadius: BorderRadius.circular(VaiaRadius.md),
+        border: Border.all(color: VaiaColors.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.route_rounded, size: 17, color: VaiaColors.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _recorridoMensaje!,
+              style: const TextStyle(fontSize: 11.5, color: VaiaColors.textSecondary),
+            ),
+          ),
         ],
       ),
     );
