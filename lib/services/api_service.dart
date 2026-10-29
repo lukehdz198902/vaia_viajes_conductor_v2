@@ -198,6 +198,9 @@ class ApiService {
   Future<ApiResponse> preferenciasServicio(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/PreferenciasServicio?idServicio=$idServicio&idConductor=$idConductor');
 
+  Future<ApiResponse> tarifasServicio(int idServicio, int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/TarifasServicio?idServicio=$idServicio&idConductor=$idConductor');
+
   // ─── GAMAS / PREFERENCIA DE PAGO ─────────────────────────────
 
   Future<ApiResponse> listarGamas() => get('${ApiConfig.conductorEndpoint}/ListarGamas');

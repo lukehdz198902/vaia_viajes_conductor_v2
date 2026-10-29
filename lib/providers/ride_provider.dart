@@ -45,6 +45,7 @@ class RideProvider extends ChangeNotifier {
   bool _hasNewRequest = false;
   List<Servicio> _history = [];
   final List<ParadaModel> _paradas = [];
+  Map<String, dynamic>? _tarifasServicio;
   bool _conectadoWs = false;
   bool _online = false;
   bool _permisoUbicacionOk = false;
@@ -713,6 +714,22 @@ class RideProvider extends ChangeNotifier {
         idServicio,
         _idConductorPresencia > 0 ? _idConductorPresencia : (_activeRide?.idConductor ?? 0),
       );
+
+  Map<String, dynamic>? get tarifasServicio => _tarifasServicio;
+
+  /// Tarifa vigente (minimo, por km y por minuto) del servicio activo.
+  Future<void> cargarTarifasServicio(int idServicio) async {
+    try {
+      final res = await _api.tarifasServicio(
+        idServicio,
+        _idConductorPresencia > 0 ? _idConductorPresencia : (_activeRide?.idConductor ?? 0),
+      );
+      if (res.ok && res.list != null && res.list!.isNotEmpty) {
+        _tarifasServicio = Map<String, dynamic>.from(res.list!.first as Map);
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
 
   /// Limpia la solicitud ofrecida (al ignorarla o cerrarla) para que no se
   /// vuelva a mostrar la tarjeta.

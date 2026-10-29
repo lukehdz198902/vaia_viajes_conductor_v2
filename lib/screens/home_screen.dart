@@ -147,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void _centrarEnConductor() {
     final p = _miPosicion;
     if (p == null) return;
-    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(p.latitude, p.longitude), 15.5));
+    _mapController?.animateCamera(CameraUpdate.newLatLngZoom(LatLng(p.latitude, p.longitude), 16.5));
   }
 
   void _actualizarMarcadorConductor() {
@@ -815,7 +815,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children: [
         // Mapa con las zonas de mayor demanda y de conexion de pasajeros
         GoogleMap(
-          initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 14.5),
+          initialCameraPosition: const CameraPosition(target: LatLng(26.0923, -98.2789), zoom: 16.0),
           onMapCreated: (c) {
             _mapController = c;
             _centrarEnConductor();

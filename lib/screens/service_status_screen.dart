@@ -59,6 +59,7 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       if (s != null) {
         _rideRef!.listarParadas(s.id);
         _cargarPreferencias(s.id);
+        _rideRef!.cargarTarifasServicio(s.id);
         _actualizarMapa(forzar: true);
         _cargarRecorrido();
       }
@@ -79,7 +80,10 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
       _actualizarMapa(forzar: true);
       _cargarRecorrido();
       final s = context.read<RideProvider>().activeRide;
-      if (s != null) _cargarPreferencias(s.id);
+      if (s != null) {
+        _cargarPreferencias(s.id);
+        _rideRef?.cargarTarifasServicio(s.id);
+      }
     }
   }
 
@@ -899,13 +903,22 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
 
   Widget _tarjetaTarifa(RideProvider ride, Servicio s) {
     final monto = ride.costoEnCurso ?? s.costoEstimado ?? 0;
+    final tarifa = ride.tarifasServicio;
+    final tMin = _toDouble(tarifa?['costominimo']);
+    final tKm = _toDouble(tarifa?['costoporkm']);
+    final tMinuto = _toDouble(tarifa?['costoporminuto']);
+    final tieneTarifa = tMin > 0 || tKm > 0 || tMinuto > 0;
+    final esProveedor = _esPagoProveedor(s.tipoPago);
+    final comision = s.comisionAplicada ?? 0;
+    final ganancia = s.gananciaConductor ?? 0;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(gradient: VaiaColors.primaryGradient, borderRadius: BorderRadius.circular(VaiaRadius.lg)),
       child: Column(children: [
-        const Text('COBRO HASTA EL MOMENTO',
-            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
+        Text(s.esFinalizado ? 'COBRO FINAL DEL SERVICIO' : 'COBRO HASTA EL MOMENTO',
+            style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1)),
         const SizedBox(height: 4),
         TweenAnimationBuilder<double>(
           tween: Tween(begin: monto, end: monto),
@@ -914,10 +927,115 @@ class _ServiceStatusScreenState extends State<ServiceStatusScreen> {
               style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
         ),
         const SizedBox(height: 4),
-        Text('Tarifa dinamica segun distancia y tiempo',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5)),
+        Text(
+          s.esFinalizado ? 'Monto total cobrado al pasajero' : 'Tarifa dinamica segun distancia y tiempo',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11.5),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(child: _statTarifa(Icons.route_rounded, '${((s.distanciaMetros ?? 0) / 1000).toStringAsFixed(1)} km', 'Recorrido')),
+            Expanded(child: _statTarifa(Icons.timer_outlined, _fmtDuracion(s.duracionSegundos), 'Tiempo')),
+            Expanded(child: _statTarifa(Icons.account_balance_wallet_outlined, s.tipoPago ?? '--', 'Pago')),
+          ],
+        ),
+        if (tieneTarifa) ...[
+          const SizedBox(height: 10),
+          Divider(height: 1, color: Colors.white.withValues(alpha: 0.22)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _statTarifa(Icons.flag_rounded, '\$${tMin.toStringAsFixed(2)}', 'Tarifa minima')),
+              Expanded(child: _statTarifa(Icons.speed_rounded, '\$${tKm.toStringAsFixed(2)}', 'Por km')),
+              Expanded(child: _statTarifa(Icons.timer_outlined, '\$${tMinuto.toStringAsFixed(2)}', 'Por minuto')),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Total = tarifa minima + (km x costo por km) + (minutos x costo por minuto).',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 9.5, height: 1.35, color: Colors.white.withValues(alpha: 0.72)),
+          ),
+        ],
+        if (comision > 0 || ganancia > 0) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _datoCobro('Comision Vaia', '\$${comision.toStringAsFixed(2)}')),
+                Container(width: 1, height: 28, color: Colors.white.withValues(alpha: 0.24)),
+                Expanded(child: _datoCobro('Tu ganancia', '\$${ganancia.toStringAsFixed(2)}')),
+              ],
+            ),
+          ),
+        ],
+        if (esProveedor) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.account_balance_outlined, size: 15, color: Colors.white),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    '${s.tipoPago} cobra su propia comision por la transaccion. '
+                    'Corresponde al proveedor y no forma parte del cobro de Vaia.',
+                    style: TextStyle(fontSize: 10.5, height: 1.4, color: Colors.white.withValues(alpha: 0.9)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ]),
     );
+  }
+
+  Widget _datoCobro(String label, String valor) => Column(
+        children: [
+          Text(valor, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
+          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 9.5)),
+        ],
+      );
+
+  Widget _statTarifa(IconData icon, String value, String label) => Column(
+        children: [
+          Icon(icon, size: 15, color: Colors.white70),
+          const SizedBox(height: 3),
+          Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+          Text(label, style: const TextStyle(fontSize: 9.5, color: Colors.white70)),
+        ],
+      );
+
+  double _toDouble(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  bool _esPagoProveedor(String? tipoPago) {
+    final t = (tipoPago ?? '').toLowerCase();
+    return t.contains('paypal') || t.contains('mercado');
+  }
+
+  String _fmtDuracion(int? segundos) {
+    final min = ((segundos ?? 0) / 60).ceil();
+    if (min <= 0) return '--';
+    return min >= 60 ? '${min ~/ 60}h ${min % 60}m' : '$min min';
   }
 
   Widget _tarjetaParadas(RideProvider ride, bool isEnViaje) {
