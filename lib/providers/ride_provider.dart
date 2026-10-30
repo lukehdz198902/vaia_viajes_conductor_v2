@@ -648,6 +648,26 @@ class RideProvider extends ChangeNotifier {
 
   // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ PARADAS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
+  /// Refresca nombre, calificacion y total de servicios del pasajero de una
+  /// oferta entrante (respaldo si el payload del WebSocket viene incompleto).
+  Future<void> refrescarOferta(int idServicio) async {
+    if (idServicio <= 0) return;
+    try {
+      final res = await _api.datosServicioOfertado(
+        idServicio,
+        _idConductorPresencia > 0 ? _idConductorPresencia : (_activeRide?.idConductor ?? 0),
+      );
+      if (res.ok && res.data != null) {
+        final actual = _servicioOfrecido;
+        if (actual == null || actual.id != idServicio) return;
+        _servicioOfrecido = Servicio.fromJson({
+          ...actual.raw,
+          ...res.data!,
+        });
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
   Future<void> listarParadas(int idServicio) async {
     try {
       final resp = await _api.listarParadas(idServicio);

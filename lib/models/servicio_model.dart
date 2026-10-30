@@ -162,9 +162,9 @@ class Servicio {
     return Servicio(
       id: _safeInt(json['id']) ?? 0,
       idPasajero: _safeInt(json['idpasajero']),
-      pasajeroNombre: (json['pasajero_nombre'] ?? json['pas_nombre'] ?? json['p_nombre'] ?? json['pasajeroNombre'])?.toString(),
+      pasajeroNombre: (json['pasajero_nombre'] ?? json['pas_nombre'] ?? json['p_nombre'] ?? json['pasajeroNombre'] ?? json['pasajeronombre'])?.toString(),
       pasajeroApaterno: (json['pasajero_appaterno'] ?? json['pas_appaterno'] ?? json['p_appaterno'])?.toString(),
-      pasajeroFoto: (json['pasajero_foto'] ?? json['pas_foto'] ?? json['p_foto'] ?? json['pasajeroFoto'])?.toString(),
+      pasajeroFoto: (json['pasajero_foto'] ?? json['pas_foto'] ?? json['p_foto'] ?? json['pasajeroFoto'] ?? json['pasajerofoto'])?.toString(),
       pasajeroTelefono: (json['pasajero_telefono'] ?? json['pas_tel'] ?? json['p_tel'] ?? json['pasajeroTelefono'])?.toString(),
       pasajeroCalificacion: _safeDouble(json['pasajero_calificacion'] ?? json['pasajerocalificacion'] ?? json['pasajeroCalificacion']),
       pasajeroTotalViajes: _safeInt(json['pasajero_totalviajes'] ?? json['pasajerototalviajes'] ?? json['pasajeroTotalViajes']),

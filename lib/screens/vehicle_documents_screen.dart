@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/error_messages.dart';
 
 /// Documentos del vehiculo (tarjeta de circulacion, poliza, seguro, etc.).
 class VehicleDocumentsScreen extends StatefulWidget {
@@ -74,7 +75,7 @@ class _VehicleDocumentsScreenState extends State<VehicleDocumentsScreen> {
       ));
       await _cargar();
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: VaiaColors.danger));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessages.friendly(e)), backgroundColor: VaiaColors.danger));
     } finally {
       if (mounted) setState(() => _subiendo = null);
     }

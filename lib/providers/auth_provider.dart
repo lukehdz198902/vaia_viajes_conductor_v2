@@ -191,30 +191,6 @@ class AuthProvider extends ChangeNotifier {
     return false;
   }
 
-  Future<bool> loginConGoogle(String idToken) async {
-    _loading = true; _error = null; notifyListeners();
-    try {
-      final resp = await _api.iniciarSesionGoogle(idToken, googleKey: NotificationService.token,
-          dispositivoInfo: AppInfo.dispositivo, sistemaOperativo: AppInfo.sistemaOperativo);
-      _loading = false;
-      if (resp.ok && resp.data != null) {
-        _conductor = Conductor.fromJson(resp.data!);
-        await _storage.saveUserData(resp.data!);
-        try { await _signalr.iniciar(_conductor!.id); } catch (_) {}
-        notifyListeners();
-        await _registrarToken();
-        _registrarSesionDispositivo();
-        await refreshPerfil();
-        return true;
-      }
-      _error = resp.mensaje.isNotEmpty ? resp.mensaje : (resp.error ?? 'No se pudo iniciar sesion con Google');
-      notifyListeners();
-      return false;
-    } catch (e) {
-      _loading = false; _error = 'Error de conexion'; notifyListeners(); return false;
-    }
-  }
-
   Future<void> logout() async {
     if (_conductor != null) {
       await _api.cerrarSesion(_conductor!.id, _conductor!.uuidsesion ?? '');

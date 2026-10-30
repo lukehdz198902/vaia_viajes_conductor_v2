@@ -21,9 +21,9 @@ class MarkerIcons {
   /// Carga los tres iconos (idempotente). Llamar al abrir una pantalla con mapa.
   static Future<void> cargar() async {
     if (_cargado) return;
-    try { _car = await _png('assets/images/carro32_lado.png', 62); } catch (_) {}
-    try { _origin = await _svg('assets/images/ic_marker_origin.svg', 56); } catch (_) {}
-    try { _destination = await _svg('assets/images/ic_marker_destination.svg', 56); } catch (_) {}
+    try { _car = await _png('assets/images/carro32_lado.png', 50); } catch (_) {}
+    try { _origin = await _svg('assets/images/ic_marker_origin.svg', 50); } catch (_) {}
+    try { _destination = await _svg('assets/images/ic_marker_destination.svg', 50); } catch (_) {}
     _cargado = true;
   }
 

@@ -1,4 +1,3 @@
-import '../../services/google_auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:provider/provider.dart';
@@ -31,21 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _accountCtrl.dispose();
     _passCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loginConGoogle() async {
-    try {
-      final idToken = await GoogleAuthService.obtenerIdToken();
-      if (idToken == null) return;
-      final auth = context.read<AuthProvider>();
-      final ok = await auth.loginConGoogle(idToken);
-      if (!mounted) return;
-      if (ok) { Navigator.pushReplacementNamed(context, '/home'); }
-      else { ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error ?? 'No se pudo iniciar sesion con Google'), backgroundColor: VaiaColors.danger)); }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e'), backgroundColor: VaiaColors.danger));
-    }
   }
 
   Future<void> _login() async {
@@ -153,12 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         icon: Icons.arrow_forward_rounded,
                         loading: auth.loading,
                         onPressed: auth.loading ? null : _login,
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: auth.loading ? null : _loginConGoogle,
-                        icon: const Icon(Icons.g_mobiledata_rounded),
-                        label: const Text('Continuar con Google'),
                       ),
                     ],
                   ),

@@ -492,10 +492,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final auth = context.watch<AuthProvider>();
     final ride = context.watch<RideProvider>();
 
-    // Mantiene la pantalla encendida mientras el conductor esta conectado.
-    if (auth.isOnline != _wakelockActivo) {
-      _wakelockActivo = auth.isOnline;
-      WakelockPlus.toggle(enable: auth.isOnline);
+    // Mantiene la pantalla encendida mientras el conductor usa la app,
+    // este conectado o no (tambien aplica en modo burbuja desde el overlay).
+    if (!_wakelockActivo) {
+      _wakelockActivo = true;
+      WakelockPlus.enable();
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -828,31 +829,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           markers: _mapMarkers,
           circles: _mapCircles,
         ),
-        // Estado de conexion (socket) y ultima ubicacion enviada al servidor
-        Positioned(top: 10, left: 10, child: _chipEstado(ride)),
-        // Boton para ocultar/mostrar las tarjetas y ver el mapa mas amplio
-        Positioned(
-          top: 10,
-          right: 10,
-          child: Material(
-            color: VaiaColors.surface,
-            elevation: 4,
-            borderRadius: BorderRadius.circular(VaiaRadius.md),
-            child: InkWell(
-              onTap: () => setState(() => _ocultarPaneles = !_ocultarPaneles),
-              borderRadius: BorderRadius.circular(VaiaRadius.md),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_ocultarPaneles ? Icons.map_rounded : Icons.visibility_off_rounded, size: 17, color: VaiaColors.primary),
-                  const SizedBox(width: 6),
-                  Text(_ocultarPaneles ? 'Ver tarjetas' : 'Ver mapa',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: VaiaColors.primary)),
-                ]),
-              ),
-            ),
-          ),
-        ),
+        // El estado de conexion y la ultima ubicacion se muestran en la tarjeta
+        // inferior; no se repiten aqui para liberar el mapa.
         Positioned(
           left: 14,
           bottom: _ocultarPaneles ? 70 : 122,
@@ -921,37 +899,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               color: excede ? VaiaColors.danger : Colors.white70,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _chipEstado(RideProvider ride) {
-    final conectado = ride.conectadoWs;
-    final color = conectado ? VaiaColors.onlineGreen : VaiaColors.warning;
-    final ult = ride.ultimaUbicacion;
-    final hora = ult != null
-        ? '${ult.hour.toString().padLeft(2, '0')}:${ult.minute.toString().padLeft(2, '0')}:${ult.second.toString().padLeft(2, '0')}'
-        : '--:--:--';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-      decoration: BoxDecoration(
-        color: VaiaColors.surface.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(VaiaRadius.md),
-        boxShadow: VaiaShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 9, height: 9, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-            const SizedBox(width: 6),
-            Text(conectado ? 'En vivo' : 'Sin conexion',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
-          ]),
-          const SizedBox(height: 3),
-          Text('Ultima ubicacion: $hora', style: const TextStyle(fontSize: 10.5, color: VaiaColors.textSecondary)),
         ],
       ),
     );

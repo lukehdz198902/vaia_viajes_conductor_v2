@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import '../services/error_messages.dart';
 
 /// Documentos del conductor (INE, licencia, CURP, RFC, etc.).
 class DocumentsScreen extends StatefulWidget {
@@ -76,7 +77,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
       await _cargar();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: VaiaColors.danger));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ErrorMessages.friendly(e)), backgroundColor: VaiaColors.danger));
       }
     } finally {
       if (mounted) setState(() => _subiendo = null);

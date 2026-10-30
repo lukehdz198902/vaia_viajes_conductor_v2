@@ -2,7 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Vaia Conductor necesita tu ubicacion para recibir servicios y guiarte durante el viaje.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Vaia Conductor necesita tu ubicacion en segundo plano para seguir conectado y recibir servicios mientras la app esta minimizada.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Vaia Conductor usa la camara para fotografias de documentos y soporte.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vaia Conductor accede a tus fotos para subir documentos del conductor y de la unidad.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>whatsapp</string>
+		<string>comgooglemaps</string>
+		<string>maps</string>
+	</array>	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>

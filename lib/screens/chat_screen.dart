@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
+import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -10,27 +13,83 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _msgCtrl = TextEditingController();
   late int _servicioId;
   late String _pasajero;
+  Timer? _presenceTimer;
+  ApiService? _api;
+  int _idConductor = 0;
+  bool _presenceIniciada = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
-    _servicioId = args?['servicioId'] as int? ?? 0;
-    _pasajero = args?['pasajero']?.toString() ?? 'Pasajero';
-    if (_servicioId > 0) {
+    _servicioId = args?['idServicio'] as int? ?? args?['servicioId'] as int? ?? 0;
+    _pasajero = args?['pasajero']?.toString() ??
+        args?['conductorNombre']?.toString() ??
+        args?['pasajeroNombreCompleto']?.toString() ??
+        'Pasajero';
+    if (_servicioId > 0 && !_presenceIniciada) {
+      _presenceIniciada = true;
       final chat = context.read<ChatProvider>();
       final auth = context.read<AuthProvider>();
+      _idConductor = auth.userId;
+      _api = ApiService();
+      NotificationService.idServicioChatAbierto = _servicioId;
       chat.startPolling(_servicioId, auth.userId);
       chat.loadMessages(_servicioId, auth.userId);
+      _marcarChatAbierto();
+      _presenceTimer = Timer.periodic(const Duration(seconds: 25), (_) => _heartbeatPresencia());
+    }
+  }
+
+  void _marcarChatAbierto() {
+    final api = _api;
+    if (api == null || _idConductor <= 0 || _servicioId <= 0) return;
+    api.chatAbierto(_servicioId, _idConductor);
+  }
+
+  /// Solo mantiene la presencia si esta pantalla sigue visible.
+  void _heartbeatPresencia() {
+    if (!mounted) return;
+    if (ModalRoute.of(context)?.isCurrent != true) return;
+    _marcarChatAbierto();
+  }
+
+  void _marcarChatCerrado() {
+    final api = _api;
+    if (api == null || _idConductor <= 0 || _servicioId <= 0) return;
+    api.chatCerrado(_servicioId, _idConductor);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _presenceTimer?.cancel();
+      _marcarChatCerrado();
+    } else if (state == AppLifecycleState.resumed) {
+      _marcarChatAbierto();
+      _presenceTimer?.cancel();
+      _presenceTimer = Timer.periodic(const Duration(seconds: 25), (_) => _heartbeatPresencia());
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _presenceTimer?.cancel();
+    _marcarChatCerrado();
+    if (NotificationService.idServicioChatAbierto == _servicioId) {
+      NotificationService.idServicioChatAbierto = 0;
+    }
     context.read<ChatProvider>().stopPolling();
     _msgCtrl.dispose();
     super.dispose();

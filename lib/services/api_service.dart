@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 import 'network_usage_service.dart';
+import 'error_messages.dart';
 
 class ApiResponse {
   final bool ok;
@@ -76,7 +77,7 @@ class ApiService {
       } catch (_) {}
       return ApiResponse(ok: false, error: msg, errorCode: code, statusCode: resp.statusCode);
     } catch (e) {
-      return ApiResponse(ok: false, error: e.toString());
+      return ApiResponse(ok: false, error: ErrorMessages.friendly(e));
     }
   }
 
@@ -102,7 +103,7 @@ class ApiService {
       ).timeout(ApiConfig.timeout);
       return _processResponse(resp, endpoint: endpoint);
     } catch (e) {
-      return ApiResponse(ok: false, error: e.toString());
+      return ApiResponse(ok: false, error: ErrorMessages.friendly(e));
     }
   }
 
@@ -115,7 +116,7 @@ class ApiService {
       ).timeout(ApiConfig.timeout);
       return _processResponse(resp, isList: true, endpoint: endpoint);
     } catch (e) {
-      return ApiResponse(ok: false, error: e.toString());
+      return ApiResponse(ok: false, error: ErrorMessages.friendly(e));
     }
   }
 
@@ -129,7 +130,7 @@ class ApiService {
       final resp = await http.Response.fromStream(streamed);
       return _processResponse(resp, endpoint: endpoint);
     } catch (e) {
-      return ApiResponse(ok: false, error: e.toString());
+      return ApiResponse(ok: false, error: ErrorMessages.friendly(e));
     }
   }
 
@@ -141,16 +142,6 @@ class ApiService {
       post('${ApiConfig.conductorEndpoint}/IniciarSesion', {
         'account': account, 'pass': pass,
         'googlekey': googleKey ?? '',
-        'dispositivoinfo': dispositivoInfo ?? '',
-        'sistemaoperativo': sistemaOperativo ?? '',
-      });
-
-  Future<ApiResponse> iniciarSesionGoogle(String idToken,
-      {String? googleKey, String? dispositivoInfo, String? sistemaOperativo}) =>
-      post('${ApiConfig.conductorEndpoint}/IniciarSesionGoogle', {
-        'idToken': idToken,
-        'googlekey': googleKey,
-        'googlekeyso': sistemaOperativo,
         'dispositivoinfo': dispositivoInfo ?? '',
         'sistemaoperativo': sistemaOperativo ?? '',
       });
@@ -198,8 +189,25 @@ class ApiService {
   Future<ApiResponse> preferenciasServicio(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/PreferenciasServicio?idServicio=$idServicio&idConductor=$idConductor');
 
+  Future<ApiResponse> chatAbierto(int idServicio, int idConductor) =>
+      post('Servicio/ChatAbierto', {
+        'tipo': 'conductor',
+        'idUsuario': idConductor,
+        'idServicio': idServicio,
+      });
+
+  Future<ApiResponse> chatCerrado(int idServicio, int idConductor) =>
+      post('Servicio/ChatCerrado', {
+        'tipo': 'conductor',
+        'idUsuario': idConductor,
+        'idServicio': idServicio,
+      });
+
   Future<ApiResponse> tarifasServicio(int idServicio, int idConductor) =>
       get('${ApiConfig.conductorEndpoint}/TarifasServicio?idServicio=$idServicio&idConductor=$idConductor');
+
+  Future<ApiResponse> datosServicioOfertado(int idServicio, int idConductor) =>
+      get('${ApiConfig.conductorEndpoint}/DatosServicioOfertado?idServicio=$idServicio&idConductor=$idConductor');
 
   // ─── GAMAS / PREFERENCIA DE PAGO ─────────────────────────────
 
